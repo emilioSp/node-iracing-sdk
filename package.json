@@ -1,0 +1,36 @@
+{
+  "name": "nodeirsdk",
+  "version": "0.0.0",
+  "author": "Emilio Spatola",
+  "description": "Node.js implementation of iRacing SDK",
+  "keywords": [
+    "iracing",
+    "sdk",
+    "telemetry",
+    "sim-racing"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "js-yaml": "4.1.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "4.0.9",
+    "@types/node": "25.0.3",
+    "typescript": "5.9.3"
+  },
+  "optionalDependencies": {
+    "ffi-napi": "4.0.3",
+    "ref-napi": "3.0.3"
+  }
+}

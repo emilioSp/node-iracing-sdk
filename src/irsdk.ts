@@ -231,13 +231,6 @@ export class IRSDK extends EventEmitter {
   }
 
   /**
-   * Get telemetry value (alias for get)
-   */
-  operator_getitem(key: string): any {
-    return this.get(key);
-  }
-
-  /**
    * Check if connected to iRacing
    */
   get isConnected(): boolean {
@@ -307,14 +300,6 @@ export class IRSDK extends EventEmitter {
       this.varBufferLatest.unfreeze();
       this.varBufferLatest = null;
     }
-  }
-
-  /**
-   * Get session info update by key
-   */
-  getSessionInfoUpdateByKey(key: string): number | null {
-    const cached = this.sessionInfoDict.get(key);
-    return cached?.update ?? null;
   }
 
   // Broadcast message methods
@@ -592,4 +577,3 @@ export class IRSDK extends EventEmitter {
 }
 
 export default IRSDK;
-

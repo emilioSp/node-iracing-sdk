@@ -12,10 +12,20 @@
 import IBT from '../src/ibt.js';
 
 // Path to your IBT file (replace with your actual IBT file path)
-const ibtFilePath = './telemetry.ibt';
+const ibtFilePath = '../telemetry/porsche_gt3_miami.ibt';
 
 // Initialize the IBT reader
 const ibt = new IBT();
+
+const formatTime = (seconds: number): string => {
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const millis = Math.floor((seconds - Math.floor(seconds)) * 1000);
+
+  return [minutes, secs, millis]
+    .map((value) => value.toString().padStart(2, '0'))
+    .join(':');
+};
 
 try {
   // Open the IBT file
@@ -27,24 +37,6 @@ try {
   console.log('\n--- Available Variables ---');
   console.log(`Total variables: ${varNames?.length}`);
   console.log('First 20 variables:', varNames?.slice(0, 20).join(', '));
-
-  // Get the latest telemetry snapshot
-  console.log('\n--- Latest Telemetry Data (Last Record) ---');
-  const speed = ibt.operator_getitem('Speed');
-  const lap = ibt.operator_getitem('Lap');
-  const rpm = ibt.operator_getitem('RPM');
-  const throttle = ibt.operator_getitem('Throttle');
-  const brake = ibt.operator_getitem('Brake');
-  const gear = ibt.operator_getitem('Gear');
-  const sessionTime = ibt.operator_getitem('SessionTime');
-
-  console.log(`Speed: ${speed} km/h`);
-  console.log(`Lap: ${lap}`);
-  console.log(`RPM: ${rpm}`);
-  console.log(`Throttle: ${(throttle * 100).toFixed(2)}%`);
-  console.log(`Brake: ${(brake * 100).toFixed(2)}%`);
-  console.log(`Gear: ${gear}`);
-  console.log(`Session Time: ${sessionTime?.toFixed(2)} seconds`);
 
   // Get all telemetry values for a specific variable across all records
   console.log('\n--- Speed Data Across All Records ---');
@@ -59,13 +51,24 @@ try {
   }
 
   // Get specific record at index
-  console.log('\n--- Telemetry at Index 100 ---');
-  const speedAt100 = ibt.get(100, 'Speed');
-  const lapAt100 = ibt.get(100, 'Lap');
-  const rpmAt100 = ibt.get(100, 'RPM');
-  console.log(`Speed: ${speedAt100} km/h`);
-  console.log(`Lap: ${lapAt100}`);
-  console.log(`RPM: ${rpmAt100}`);
+  const index = 50_000;
+  console.log(`--- Telemetry at Index ${index} ---`);
+
+  const speed = ibt.get(index, 'Speed');
+  const lap = ibt.get(index, 'Lap');
+  const rpm = ibt.get(index, 'RPM');
+  const currentLapTime = ibt.get(index, 'LapCurrentLapTime');
+  const throttle = ibt.get(index, 'Throttle');
+  const brake = ibt.get(index, 'Brake');
+  const gear = ibt.get(index, 'Gear');
+
+  console.log(`Speed: ${speed} km/h`);
+  console.log(`Lap: ${lap}`);
+  console.log(`RPM: ${rpm}`);
+  console.log(`Throttle: ${(throttle * 100).toFixed(2)}%`);
+  console.log(`Brake: ${(brake * 100).toFixed(2)}%`);
+  console.log(`Gear: ${gear}`);
+  console.log(`Current Lap Time: ${formatTime(currentLapTime)}`);
 
   // Print throttle data for a sample of records
   console.log('\n--- Sample Throttle Input ---');
@@ -89,6 +92,7 @@ try {
   console.log('\n--- Sample Brake Input ---');
   const allBrakes = ibt.getAll('Brake');
   if (allBrakes && allBrakes.length > 0) {
+    console.log(`Total brakes records: ${allBrakes.length}`);
     console.log('First 5 brake values:');
     for (let i = 0; i < Math.min(5, allBrakes.length); i++) {
       console.log(`  Record ${i}: ${(allBrakes[i] * 100).toFixed(2)}%`);

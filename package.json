@@ -7,12 +7,25 @@
     "iracing",
     "sdk",
     "telemetry",
-    "sim-racing"
+    "sim-racing",
+    "racing",
+    "simulation"
   ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/emiliosp/nodeirsdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/emiliosp/nodeirsdk/issues"
+  },
+  "homepage": "https://github.com/emiliosp/nodeirsdk#readme",
   "scripts": {
     "build": "tsc",
     "lint": "biome check .",

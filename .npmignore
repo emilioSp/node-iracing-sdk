@@ -1,0 +1,31 @@
+# Development files
+.git/
+.github/
+.idea/
+.vscode/
+
+# Config files
+.nvmrc
+.gitignore
+biome.json
+tsconfig.json
+
+# Test files
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Examples and docs (users can see these on GitHub)
+examples/
+telemetry/
+API_REFERENCE.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+

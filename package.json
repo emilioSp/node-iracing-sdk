@@ -1,5 +1,5 @@
 {
-  "name": "nodeirsdk",
+  "name": "node-iRacing-sdk",
   "version": "1.0.0",
   "author": "Emilio Spatola",
   "description": "Node.js implementation of iRacing SDK",
@@ -20,12 +20,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/emiliosp/nodeirsdk.git"
+    "url": "git+https://github.com/emilioSp/node-iRacing-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/emiliosp/nodeirsdk/issues"
+    "url": "https://github.com/emiliosp/node-iRacing-sdk/issues"
   },
-  "homepage": "https://github.com/emiliosp/nodeirsdk#readme",
+  "homepage": "https://github.com/emiliosp/node-iRacing-sdk#readme",
   "scripts": {
     "build": "tsc",
     "lint": "biome check .",

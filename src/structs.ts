@@ -1,8 +1,61 @@
+/**
+ * Helper functions to read binary values from a plain number[] array.
+ * These replace Node.js Buffer methods (readInt32LE, readFloatLE, etc.)
+ * so the codebase works with plain JavaScript arrays from koffi.decode().
+ */
+
+function readUInt8(data: number[], offset: number): number {
+  return data[offset] & 0xff;
+}
+
+function readInt32LE(data: number[], offset: number): number {
+  const val =
+    data[offset] |
+    (data[offset + 1] << 8) |
+    (data[offset + 2] << 16) |
+    (data[offset + 3] << 24);
+  return val; // already signed due to << 24
+}
+
+function readUInt32LE(data: number[], offset: number): number {
+  return (
+    (data[offset] +
+      data[offset + 1] * 0x100 +
+      data[offset + 2] * 0x10000 +
+      data[offset + 3] * 0x1000000) >>>
+    0
+  );
+}
+
+function readFloatLE(data: number[], offset: number): number {
+  const bytes = new Uint8Array([
+    data[offset],
+    data[offset + 1],
+    data[offset + 2],
+    data[offset + 3],
+  ]);
+  return new DataView(bytes.buffer).getFloat32(0, true);
+}
+
+function readDoubleLE(data: number[], offset: number): number {
+  const bytes = new Uint8Array([
+    data[offset],
+    data[offset + 1],
+    data[offset + 2],
+    data[offset + 3],
+    data[offset + 4],
+    data[offset + 5],
+    data[offset + 6],
+    data[offset + 7],
+  ]);
+  return new DataView(bytes.buffer).getFloat64(0, true);
+}
+
 export class IRSDKStruct {
-  protected _sharedMem: Buffer;
+  protected _sharedMem: number[];
   protected _offset: number;
 
-  constructor(sharedMem: Buffer, offset: number = 0) {
+  constructor(sharedMem: number[], offset: number = 0) {
     this._sharedMem = sharedMem;
     this._offset = offset;
   }
@@ -13,17 +66,17 @@ export class IRSDKStruct {
 
     switch (type) {
       case 'i': // int32
-        return this._sharedMem.readInt32LE(absoluteOffset);
+        return readInt32LE(this._sharedMem, absoluteOffset);
       case 'I': // uint32
-        return this._sharedMem.readUInt32LE(absoluteOffset);
+        return readUInt32LE(this._sharedMem, absoluteOffset);
       case 'f': // float
-        return this._sharedMem.readFloatLE(absoluteOffset);
+        return readFloatLE(this._sharedMem, absoluteOffset);
       case 'd': // double
-        return this._sharedMem.readDoubleLE(absoluteOffset);
+        return readDoubleLE(this._sharedMem, absoluteOffset);
       case '?': // bool
-        return this._sharedMem.readUInt8(absoluteOffset) !== 0;
+        return readUInt8(this._sharedMem, absoluteOffset) !== 0;
       case 'c': // char
-        return this._sharedMem.readUInt8(absoluteOffset);
+        return readUInt8(this._sharedMem, absoluteOffset);
       default:
         throw new Error(`Unknown type: ${type}`);
     }
@@ -31,13 +84,14 @@ export class IRSDKStruct {
 
   protected getStringValue(offset: number, maxLength: number): string {
     const absoluteOffset = this._offset + offset;
-    const buffer = this._sharedMem.slice(
-      absoluteOffset,
-      absoluteOffset + maxLength,
-    );
-    const nullIndex = buffer.indexOf(0);
-    const actualBuffer = nullIndex === -1 ? buffer : buffer.slice(0, nullIndex);
-    return actualBuffer.toString('latin1');
+    const chars: number[] = [];
+    for (let i = 0; i < maxLength; i++) {
+      const byte = this._sharedMem[absoluteOffset + i];
+      if (byte === 0) break;
+      chars.push(byte);
+    }
+    // Decode as latin1 (each byte maps directly to its char code)
+    return String.fromCharCode(...chars);
   }
 }
 
@@ -94,9 +148,9 @@ export class Header extends IRSDKStruct {
 export class VarBuffer extends IRSDKStruct {
   private _bufLen: number;
   private _isFrozen: boolean = false;
-  private _frozenMemory: Buffer | null = null;
+  private _frozenMemory: number[] | null = null;
 
-  constructor(sharedMem: Buffer, offset: number, bufLen: number) {
+  constructor(sharedMem: number[], offset: number, bufLen: number) {
     super(sharedMem, offset);
     this._bufLen = bufLen;
   }
@@ -130,7 +184,7 @@ export class VarBuffer extends IRSDKStruct {
     this._isFrozen = false;
   }
 
-  getMemory(): Buffer {
+  getMemory(): number[] {
     return this._isFrozen && this._frozenMemory
       ? this._frozenMemory
       : this._sharedMem;

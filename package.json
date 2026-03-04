@@ -28,7 +28,7 @@
   "homepage": "https://github.com/emiliosp/node-iracing-sdk#readme",
   "scripts": {
     "build": "tsc",
-    "lint": "biome check .",
+    "lint": "biome check --fix .",
     "lint:fix": "biome check --write .",
     "test": "vitest run --coverage"
   },
@@ -37,7 +37,8 @@
     "node": "24"
   },
   "dependencies": {
-    "js-yaml": "4.1.1"
+    "js-yaml": "4.1.1",
+    "koffi": "2.15.1"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.10",
@@ -46,8 +47,5 @@
     "@vitest/coverage-v8": "3.2.4",
     "typescript": "5.9.3",
     "vitest": "3.2.4"
-  },
-  "optionalDependencies": {
-    "koffi": "2.9.3"
   }
 }

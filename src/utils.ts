@@ -1,23 +1,23 @@
 import * as yaml from 'js-yaml';
 import { YAML_TRANSLATER } from './constants.ts';
 
-export const translateYamlData = (data: Buffer): string => {
-  let buffer = Buffer.from(data);
+export const translateYamlData = (data: number[]): string => {
+  const bytes = [...data];
 
   for (const [from, to] of Object.entries(YAML_TRANSLATER)) {
-    for (let i = 0; i < buffer.length; i++) {
-      if (buffer[i] === parseInt(from, 10)) {
-        buffer[i] = to;
+    const fromByte = parseInt(from, 10);
+    for (let i = 0; i < bytes.length; i++) {
+      if (bytes[i] === fromByte) {
+        bytes[i] = to;
       }
     }
   }
 
-  const nullIndex = buffer.indexOf(0);
-  if (nullIndex !== -1) {
-    buffer = buffer.slice(0, nullIndex);
-  }
+  const nullIndex = bytes.indexOf(0);
+  const trimmed = nullIndex !== -1 ? bytes.slice(0, nullIndex) : bytes;
 
-  return buffer.toString('latin1');
+  // Decode as latin1 (each byte maps directly to its char code)
+  return String.fromCharCode(...trimmed);
 };
 
 // biome-ignore lint/suspicious/noExplicitAny: YAML data is dynamically typed
@@ -44,22 +44,25 @@ export const parseIRSDKYaml = (yamlStr: string): any => {
 };
 
 export const extractYamlSection = (
-  sharedMem: Buffer,
+  sharedMem: number[],
   offset: number,
   len: number,
   sectionName: string,
-): Buffer | null => {
+): number[] | null => {
   const start = offset;
   const end = start + len;
 
   const searchPattern = `\n${sectionName}:\n`;
-  const searchBuffer = Buffer.from(searchPattern, 'utf-8');
+  const searchBytes: number[] = [];
+  for (let i = 0; i < searchPattern.length; i++) {
+    searchBytes.push(searchPattern.charCodeAt(i));
+  }
 
   let matchStart = -1;
-  for (let i = start; i < end - searchBuffer.length; i++) {
+  for (let i = start; i < end - searchBytes.length; i++) {
     let found = true;
-    for (let j = 0; j < searchBuffer.length; j++) {
-      if (sharedMem[i + j] !== searchBuffer[j]) {
+    for (let j = 0; j < searchBytes.length; j++) {
+      if (sharedMem[i + j] !== searchBytes[j]) {
         found = false;
         break;
       }
@@ -74,14 +77,13 @@ export const extractYamlSection = (
     return null;
   }
 
-  const endPattern = '\n\n';
-  const endBuffer = Buffer.from(endPattern, 'utf-8');
+  const endBytes = [0x0a, 0x0a]; // '\n\n'
 
   let matchEnd = end;
-  for (let i = matchStart + 1; i < end - endBuffer.length; i++) {
+  for (let i = matchStart + 1; i < end - endBytes.length; i++) {
     let found = true;
-    for (let j = 0; j < endBuffer.length; j++) {
-      if (sharedMem[i + j] !== endBuffer[j]) {
+    for (let j = 0; j < endBytes.length; j++) {
+      if (sharedMem[i + j] !== endBytes[j]) {
         found = false;
         break;
       }

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import * as fs from 'node:fs';
+import koffi from 'koffi';
 import {
   BROADCASTMSGNAME,
   BroadcastMsg,
@@ -37,7 +38,7 @@ type SessionInfoCache = {
   data: any | null;
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
   dataLast?: any;
-  dataBinary?: Buffer;
+  dataBinary?: number[];
   asyncSessionInfoUpdate?: number;
   update?: number;
 };
@@ -47,7 +48,7 @@ export class IRSDK extends EventEmitter {
   private lastSessionInfoUpdate: number = 0;
   private parseYamlAsync: boolean = false;
 
-  private sharedMem: Buffer | null = null;
+  private sharedMem: number[] | null = null;
   private header: Header | null = null;
   // biome-ignore lint/suspicious/noExplicitAny: Windows API handle type varies
   private dataValidEvent: any = null;
@@ -82,28 +83,38 @@ export class IRSDK extends EventEmitter {
 
   private async initializeWindowsApi(): Promise<void> {
     try {
-      // @ts-expect-error - koffi is an optional dependency
-      // biome-ignore lint/suspicious/noExplicitAny: FFI binding is dynamically typed
-      const koffiModule = await (import('koffi') as Promise<any>);
-      const koffi = koffiModule.default || koffiModule;
-
       const user32 = koffi.load('user32.dll');
       const kernel32 = koffi.load('kernel32.dll');
 
       this.windowsApi = {
-        RegisterWindowMessageW: user32.func('uint RegisterWindowMessageW(str16 lpString)'),
-        SendNotifyMessageW: user32.func('bool SendNotifyMessageW(uintptr_t hWnd, uint Msg, uint wParam, uint lParam)'),
-        OpenEventW: kernel32.func('void* OpenEventW(uint dwDesiredAccess, bool bInheritHandle, str16 lpName)'),
-        WaitForSingleObject: kernel32.func('uint WaitForSingleObject(void* hHandle, uint dwMilliseconds)'),
+        RegisterWindowMessageW: user32.func(
+          'uint RegisterWindowMessageW(str16 lpString)',
+        ),
+        SendNotifyMessageW: user32.func(
+          'bool SendNotifyMessageW(uintptr_t hWnd, uint Msg, uint wParam, uint lParam)',
+        ),
+        OpenEventW: kernel32.func(
+          'void* OpenEventW(uint dwDesiredAccess, bool bInheritHandle, str16 lpName)',
+        ),
+        WaitForSingleObject: kernel32.func(
+          'uint WaitForSingleObject(void* hHandle, uint dwMilliseconds)',
+        ),
         CloseHandle: kernel32.func('bool CloseHandle(void* hObject)'),
-        OpenFileMappingW: kernel32.func('void* OpenFileMappingW(uint dwDesiredAccess, bool bInheritHandle, str16 lpName)'),
-        MapViewOfFile: kernel32.func('void* MapViewOfFile(void* hFileMappingObject, uint dwDesiredAccess, uint dwFileOffsetHigh, uint dwFileOffsetLow, uintptr_t dwNumberOfBytesToMap)'),
-        UnmapViewOfFile: kernel32.func('bool UnmapViewOfFile(void* lpBaseAddress)'),
+        OpenFileMappingW: kernel32.func(
+          'void* OpenFileMappingW(uint dwDesiredAccess, bool bInheritHandle, str16 lpName)',
+        ),
+        MapViewOfFile: kernel32.func(
+          'void* MapViewOfFile(void* hFileMappingObject, uint dwDesiredAccess, uint dwFileOffsetHigh, uint dwFileOffsetLow, uintptr_t dwNumberOfBytesToMap)',
+        ),
+        UnmapViewOfFile: kernel32.func(
+          'bool UnmapViewOfFile(void* lpBaseAddress)',
+        ),
         _koffi: koffi,
       };
     } catch (e) {
       console.debug(
-        'Windows API libraries not available. Broadcast messages will not work, but regular telemetry access should still function on supported platforms.', e
+        'Windows API libraries not available. Broadcast messages will not work, but regular telemetry access should still function on supported platforms.',
+        e,
       );
     }
   }
@@ -139,7 +150,7 @@ export class IRSDK extends EventEmitter {
         if (testFile) {
           this.testFile = fs.createReadStream(testFile);
           const buffer = await this.readFileToBuffer(this.testFile);
-          this.sharedMem = buffer;
+          this.sharedMem = [...buffer];
         } else if (process.platform === 'win32') {
           const mem = this.openSharedMemory();
           if (!mem) {
@@ -157,7 +168,7 @@ export class IRSDK extends EventEmitter {
 
       if (this.sharedMem) {
         if (dumpTo) {
-          fs.writeFileSync(dumpTo, this.sharedMem);
+          fs.writeFileSync(dumpTo, Buffer.from(this.sharedMem));
         }
 
         this.header = new Header(this.sharedMem);
@@ -208,6 +219,11 @@ export class IRSDK extends EventEmitter {
   get(key: string): any {
     if (!this.isInitialized || !this.header) {
       return undefined;
+    }
+
+    // Refresh shared memory for live data when not frozen
+    if (!this.varBufferLatest) {
+      this.refreshSharedMemory();
     }
 
     const varHeader = this.varHeadersDict.get(key);
@@ -293,6 +309,7 @@ export class IRSDK extends EventEmitter {
 
   freezeVarBufferLatest(): void {
     this.unfreezeVarBufferLatest();
+    this.refreshSharedMemory();
     this.waitValidDataEventSync();
 
     if (this.header) {
@@ -440,23 +457,27 @@ export class IRSDK extends EventEmitter {
 
   // Private methods
 
-  private openSharedMemory(): Buffer | null {
+  private openSharedMemory(): number[] | null {
     if (!this.windowsApi?.OpenFileMappingW || !this.windowsApi?.MapViewOfFile) {
       console.error(
         'Windows kernel32 APIs (OpenFileMappingW/MapViewOfFile) are not available. ' +
-        'Install koffi: npm install koffi',
+          'Install koffi: npm install koffi',
       );
       return null;
     }
 
     try {
       // FILE_MAP_READ = 0x0004
-      const handle = this.windowsApi.OpenFileMappingW(0x0004, false, MEMMAPFILE);
+      const handle = this.windowsApi.OpenFileMappingW(
+        0x0004,
+        false,
+        MEMMAPFILE,
+      );
 
       if (!handle) {
         console.error(
           `Failed to open iRacing shared memory mapping "${MEMMAPFILE}". ` +
-          'Ensure iRacing is running and the sim is active.',
+            'Ensure iRacing is running and the sim is active.',
         );
         return null;
       }
@@ -464,7 +485,13 @@ export class IRSDK extends EventEmitter {
       this.memMapHandle = handle;
 
       // FILE_MAP_READ = 0x0004
-      const view = this.windowsApi.MapViewOfFile(handle, 0x0004, 0, 0, MEMMAPFILESIZE);
+      const view = this.windowsApi.MapViewOfFile(
+        handle,
+        0x0004,
+        0,
+        0,
+        MEMMAPFILESIZE,
+      );
 
       if (!view) {
         console.error('Failed to map view of iRacing shared memory.');
@@ -475,16 +502,39 @@ export class IRSDK extends EventEmitter {
 
       this.memMapView = view;
 
-      // Use koffi.decode to create a Node.js Buffer from the mapped memory pointer.
-      // This Buffer directly references the shared memory so reads always reflect
-      // iRacing's latest data.
+      // koffi.decode returns a plain JS Array of uint8 values — exactly what we need
       const koffi = this.windowsApi._koffi;
-      const buffer: Buffer = koffi.decode(view, koffi.types.uint8, MEMMAPFILESIZE);
-
-      return buffer;
+      return koffi.decode(view, koffi.types.uint8, MEMMAPFILESIZE);
     } catch (error) {
       console.error('Error opening Windows shared memory:', error);
       return null;
+    }
+  }
+
+  /**
+   * Re-reads the latest data from the mapped shared memory into this.sharedMem.
+   * Call this before reading telemetry to get up-to-date values.
+   */
+  private refreshSharedMemory(): void {
+    if (!this.memMapView || !this.sharedMem || !this.windowsApi?._koffi) {
+      return;
+    }
+    try {
+      const koffi = this.windowsApi._koffi;
+      const fresh: number[] = koffi.decode(
+        this.memMapView,
+        koffi.types.uint8,
+        MEMMAPFILESIZE,
+      );
+      // Overwrite in-place so all existing references (header, varHeaders, etc.) see the new data
+      for (let i = 0; i < fresh.length; i++) {
+        this.sharedMem[i] = fresh[i];
+      }
+    } catch (error) {
+      console.error(
+        'Error refreshing shared memory data. Data may be stale.',
+        error,
+      );
     }
   }
 
@@ -577,7 +627,8 @@ export class IRSDK extends EventEmitter {
     // Check if binary data is the same as last time
     if (
       cache.dataBinary &&
-      dataBinary.equals(cache.dataBinary) &&
+      dataBinary.length === cache.dataBinary.length &&
+      dataBinary.every((v, i) => v === cache.dataBinary?.[i]) &&
       cache.dataLast
     ) {
       cache.data = cache.dataLast;
@@ -604,7 +655,7 @@ export class IRSDK extends EventEmitter {
     }
   }
 
-  private getSessionInfoBinary(key: string): Buffer | null {
+  private getSessionInfoBinary(key: string): number[] | null {
     if (!this.header || !this.sharedMem) {
       return null;
     }
@@ -678,20 +729,23 @@ export class IRSDK extends EventEmitter {
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
-  private unpackValue(buffer: Buffer, offset: number, typeChar: string): any {
+  private unpackValue(data: number[], offset: number, typeChar: string): any {
+    const bytes = new Uint8Array(data.slice(offset, offset + 8));
+    const view = new DataView(bytes.buffer);
+
     switch (typeChar) {
       case 'i':
-        return buffer.readInt32LE(offset);
+        return view.getInt32(0, true);
       case 'I':
-        return buffer.readUInt32LE(offset);
+        return view.getUint32(0, true);
       case 'f':
-        return buffer.readFloatLE(offset);
+        return view.getFloat32(0, true);
       case 'd':
-        return buffer.readDoubleLE(offset);
+        return view.getFloat64(0, true);
       case '?':
-        return buffer.readUInt8(offset) !== 0;
+        return data[offset] !== 0;
       case 'c':
-        return buffer.readUInt8(offset);
+        return data[offset] & 0xff;
       default:
         return 0;
     }

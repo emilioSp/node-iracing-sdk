@@ -4,7 +4,7 @@ import { DiskSubHeader, Header, VarHeader } from './structs.ts';
 
 export class IBT {
   private ibtFile: fs.ReadStream | null = null;
-  private fileData: Buffer | null = null;
+  private fileData: number[] | null = null;
   private header: Header | null = null;
   private diskHeader: DiskSubHeader | null = null;
   private varHeaders: VarHeader[] | null = null;
@@ -28,7 +28,8 @@ export class IBT {
    */
   open(ibtFilePath: string): void {
     this.ibtFile = fs.createReadStream(ibtFilePath);
-    this.fileData = fs.readFileSync(ibtFilePath);
+    const buf = fs.readFileSync(ibtFilePath);
+    this.fileData = [...buf];
 
     if (this.fileData) {
       this.header = new Header(this.fileData);
@@ -152,19 +153,23 @@ export class IBT {
       return null;
     }
 
+    const data = this.fileData;
+    const bytes = new Uint8Array(data.slice(offset, offset + 8));
+    const view = new DataView(bytes.buffer);
+
     switch (typeChar) {
       case 'i':
-        return this.fileData.readInt32LE(offset);
+        return view.getInt32(0, true);
       case 'I':
-        return this.fileData.readUInt32LE(offset);
+        return view.getUint32(0, true);
       case 'f':
-        return this.fileData.readFloatLE(offset);
+        return view.getFloat32(0, true);
       case 'd':
-        return this.fileData.readDoubleLE(offset);
+        return view.getFloat64(0, true);
       case '?':
-        return this.fileData.readUInt8(offset) !== 0;
+        return data[offset] !== 0;
       case 'c':
-        return this.fileData.readUInt8(offset);
+        return data[offset] & 0xff;
       default:
         return 0;
     }

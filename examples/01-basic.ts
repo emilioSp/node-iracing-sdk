@@ -24,6 +24,8 @@ async function main() {
     `Available telemetry variables: ${ir.getVarHeadersNamesList().length}\n`,
   );
 
+  console.log('Telemetry variable', ir.getVarHeadersNamesList().join());
+
   // Read some telemetry data
   console.log('=== Current Telemetry ===');
   console.log(`Speed: ${ir.get('Speed')?.toFixed(2) || 'N/A'} m/s`);

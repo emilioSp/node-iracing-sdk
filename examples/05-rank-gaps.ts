@@ -35,14 +35,14 @@ const formatGap = (s: number): string => {
   return `  ${sign}${sec}.${String(ms).padStart(3, '0')}s`;
 };
 
-const formatDelta = (s: number): string => {
-  if (!Number.isFinite(s)) return '      N/A';
+const formatDeltaLap = (deltaLap: number): string => {
+  if (!Number.isFinite(deltaLap)) return '      N/A';
 
   let sign = '';
-  if (s > 0) sign = '+';
-  else if (s < 0) sign = '-';
+  if (deltaLap > 0) sign = '+';
+  else if (deltaLap < 0) sign = '-';
 
-  const abs = Math.abs(s);
+  const abs = Math.abs(deltaLap);
   const sec = Math.floor(abs);
   const ms = Math.round((abs % 1) * 1000);
   return `  ${sign}${sec}.${String(ms).padStart(3, '0')}s`;
@@ -61,12 +61,42 @@ async function main() {
 
   console.log('Connected! Press Ctrl+C to exit\n');
 
+  // ── iRating lookup: CarIdx → IRating ────────────────────────────────────
+  // Built from DriverInfo YAML (session-level, not per-tick telemetry).
+  // Refreshed whenever the session info update counter changes.
+  let iRatingMap: Map<number, number> = new Map();
+  let lastSessionInfoUpdate = -1;
+
+  const refreshIRatingMap = () => {
+    const update: number = ir.get('SessionTick') ?? 0; // use as dirty-check proxy
+    const driverInfo = ir.get('DriverInfo');
+    if (!driverInfo?.Drivers) return;
+    if (update === lastSessionInfoUpdate && iRatingMap.size > 0) return;
+    lastSessionInfoUpdate = update;
+
+    // DEBUG: uncomment the next line to verify the exact YAML field names
+    console.log(
+      'DriverInfo sample:',
+      JSON.stringify(driverInfo.Drivers?.[0], null, 2),
+    );
+
+    iRatingMap = new Map();
+    for (const driver of driverInfo.Drivers) {
+      const idx = driver.CarIdx;
+      const rating = Number(driver.IRating ?? 0);
+      if (idx !== undefined) iRatingMap.set(idx, rating);
+    }
+  };
+
   const interval = setInterval(() => {
     if (!ir.isConnected) {
       console.log('\nDisconnected from iRacing');
       clearInterval(interval);
       process.exit(0);
     }
+
+    // Refresh iRating map from session YAML (cheap if unchanged)
+    refreshIRatingMap();
 
     ir.freezeVarBufferLatest();
 
@@ -95,6 +125,11 @@ async function main() {
       if (positions[c] === playerPos - 1) aheadIdx = c;
       if (positions[c] === playerPos + 1) behindIdx = c;
     }
+
+    // ── iRatings ─────────────────────────────────────────────────────────────
+    const playerIR = iRatingMap.get(playerIdx) ?? NaN;
+    const aheadIR = aheadIdx >= 0 ? (iRatingMap.get(aheadIdx) ?? NaN) : NaN;
+    const behindIR = behindIdx >= 0 ? (iRatingMap.get(behindIdx) ?? NaN) : NaN;
 
     // ── Lap times ────────────────────────────────────────────────────────────
     const playerLap = lastLaps[playerIdx] > 0 ? lastLaps[playerIdx] : NaN;
@@ -145,11 +180,13 @@ async function main() {
 
     // Car ahead row
     if (aheadIdx >= 0) {
+      const irStr = Number.isFinite(aheadIR) ? String(aheadIR) : 'N/A';
       console.log(
         `║  Car ahead   (P${String(playerPos - 1).padEnd(2)})                                         ║`,
       );
-      console.log(`║    Last lap :${formatTime(aheadLap).padEnd(49)}║`);
-      console.log(`║    Gap      :${formatGap(gapAhead).padEnd(49)}║`);
+      console.log(`║    iRating  : ${irStr.padEnd(48)}║`);
+      console.log(`║    Last lap : ${formatTime(aheadLap).padEnd(48)}║`);
+      console.log(`║    Gap      : ${formatGap(gapAhead).padEnd(48)}║`);
     } else {
       console.log(
         '║  Car ahead   : none (you are leading)                        ║',
@@ -161,14 +198,16 @@ async function main() {
     );
 
     // Player row
+    const playerIRStr = Number.isFinite(playerIR) ? String(playerIR) : 'N/A';
     console.log(
       `║  Player      (P${String(playerPos).padEnd(2)})                                         ║`,
     );
-    console.log(`║    Last lap :${formatTime(playerLap).padEnd(49)}║`);
+    console.log(`║    iRating  : ${playerIRStr.padEnd(48)}║`);
+    console.log(`║    Last lap : ${formatTime(playerLap).padEnd(48)}║`);
     if (aheadIdx >= 0)
-      console.log(`║    vs ahead :${formatDelta(deltaAhead).padEnd(49)}║`);
+      console.log(`║    vs ahead : ${formatDeltaLap(deltaAhead).padEnd(48)}║`);
     if (behindIdx >= 0)
-      console.log(`║    vs behind:${formatDelta(deltaBehind).padEnd(49)}║`);
+      console.log(`║    vs behind: ${formatDeltaLap(deltaBehind).padEnd(48)}║`);
 
     console.log(
       '╠══════════════════════════════════════════════════════════════╣',
@@ -176,11 +215,13 @@ async function main() {
 
     // Car behind row
     if (behindIdx >= 0) {
+      const irStr = Number.isFinite(behindIR) ? String(behindIR) : 'N/A';
       console.log(
         `║  Car behind  (P${String(playerPos + 1).padEnd(2)})                                         ║`,
       );
-      console.log(`║    Last lap :${formatTime(behindLap).padEnd(49)}║`);
-      console.log(`║    Gap      :${formatGap(gapBehind).padEnd(49)}║`);
+      console.log(`║    iRating  : ${irStr.padEnd(48)}║`);
+      console.log(`║    Last lap : ${formatTime(behindLap).padEnd(48)}║`);
+      console.log(`║    Gap      : ${formatGap(gapBehind).padEnd(48)}║`);
     } else {
       console.log(
         '║  Car behind  : none (you are last)                           ║',

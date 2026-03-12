@@ -1,5 +1,12 @@
 import * as yaml from 'js-yaml';
-import { YAML_TRANSLATER } from './constants.ts';
+
+const YAML_TRANSLATER: { [key: number]: number } = {
+  129: 0x20,
+  141: 0x20,
+  143: 0x20,
+  144: 0x20,
+  157: 0x20,
+};
 
 export const translateYamlData = (data: number[]): string => {
   const bytes = [...data];

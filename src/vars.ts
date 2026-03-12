@@ -667,5 +667,7 @@ export const SESSION_DATA_KEYS = {
   CAR_SETUP_INFO: 'CarSetupInfo',
 } as const;
 
+export const VAR_TYPE_MAP = ['c', '?', 'i', 'I', 'f', 'd'];
+
 export type SessionDataKey =
   (typeof SESSION_DATA_KEYS)[keyof typeof SESSION_DATA_KEYS];

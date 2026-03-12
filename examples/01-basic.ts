@@ -11,15 +11,7 @@ async function main() {
   const ir = new IRSDK();
 
   console.log('Connecting to iRacing...');
-  const connected = await ir.startup();
-
-  if (!connected) {
-    console.error(
-      'Failed to connect to iRacing. Make sure iRacing is running!',
-    );
-    process.exit(1);
-  }
-
+  await ir.connect();
   console.log('✓ Connected to iRacing');
   console.log(
     `Available telemetry variables: ${ir.getVarHeadersNamesList().length}\n`,

@@ -1,25 +1,4 @@
-import { EventEmitter } from 'node:events';
-import * as fs from 'node:fs';
 import koffi from 'koffi';
-import {
-  BROADCAST_MSG,
-  BROADCASTMSGNAME,
-  CAMERA_STATE,
-  CHAT_COMMAND_MODE,
-  DATAVALIDEVENTNAME,
-  FFB_COMMAND_MODE,
-  MEMMAPFILE,
-  MEMMAPFILESIZE,
-  PIT_COMMAND_MODE,
-  RELOAD_TEXTURES_MODE,
-  RPY_POS_MODE,
-  RPY_SRCH_MODE,
-  RPY_STATE_MODE,
-  STATUS_FIELD,
-  TELEM_COMMAND_MODE,
-  VAR_TYPE_MAP,
-  VIDEO_CAPTURE_MODE,
-} from './constants.ts';
 import {
   Header,
   type VarBuffer as VarBufferClass,
@@ -28,11 +7,29 @@ import {
 import {
   checkSimStatus,
   extractYamlSection,
-  padCarNumber,
   parseIRSDKYaml,
   translateYamlData,
 } from './utils.ts';
-import type { SessionDataKey, VarKey } from './vars.ts';
+import {
+  type SessionDataKey,
+  VAR_TYPE_MAP,
+  VARS,
+  type VarKey,
+} from './vars.ts';
+
+type KoffiFunction = (...args: unknown[]) => unknown;
+type KoffiBoolFunction = (...args: unknown[]) => boolean;
+type KoffiUintFunction = (...args: unknown[]) => number;
+
+type WindowsApi = {
+  RegisterWindowMessageW: KoffiUintFunction;
+  SendNotifyMessageW: KoffiBoolFunction;
+  CloseHandle: KoffiFunction;
+  OpenFileMappingW: KoffiFunction;
+  MapViewOfFile: KoffiFunction;
+  UnmapViewOfFile: KoffiFunction;
+  _koffi: typeof koffi;
+};
 
 type SessionInfoCache = {
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
@@ -44,15 +41,18 @@ type SessionInfoCache = {
   update?: number;
 };
 
-export class IRSDK extends EventEmitter {
+const MEMMAPFILE = 'Local\\IRSDKMemMapFileName';
+const MEMMAPFILESIZE = 1164 * 1024;
+
+const STATUS_CONNECTED = 1;
+
+export class IRSDK {
   private isInitialized: boolean = false;
   private lastSessionInfoUpdate: number = 0;
   private parseYamlAsync: boolean = false;
 
   private sharedMem: number[] | null = null;
   private header: Header | null = null;
-  // biome-ignore lint/suspicious/noExplicitAny: Windows API handle type varies
-  private dataValidEvent: any = null;
 
   private varHeaders: VarHeader[] | null = null;
   private varHeadersDict: Map<string, VarHeader> = new Map();
@@ -60,131 +60,63 @@ export class IRSDK extends EventEmitter {
   private varBufferLatest: VarBufferClass | null = null;
   private sessionInfoDict: Map<string, SessionInfoCache> = new Map();
 
-  private testFile: fs.ReadStream | null = null;
-  private workaroundConnectedState: number = 0;
-
-  private broadcastMsgId: number | null = null;
-
-  // biome-ignore lint/suspicious/noExplicitAny: Windows FFI binding is dynamically typed
-  private windowsApi: any = null;
-  private windowsApiReady: Promise<void> | null = null;
+  private windowsApi: WindowsApi;
   // biome-ignore lint/suspicious/noExplicitAny: Windows memory map handle
   private memMapHandle: any = null;
   // biome-ignore lint/suspicious/noExplicitAny: Windows mapped view pointer
   private memMapView: any = null;
 
   constructor(parseYamlAsync: boolean = false) {
-    super();
     this.parseYamlAsync = parseYamlAsync;
 
-    if (process.platform === 'win32') {
-      this.windowsApiReady = this.initializeWindowsApi();
+    if (process.platform !== 'win32') {
+      throw new Error(`process.platform ${process.platform} is not supported`);
     }
+
+    const user32 = koffi.load('user32.dll');
+    const kernel32 = koffi.load('kernel32.dll');
+
+    this.windowsApi = {
+      RegisterWindowMessageW: user32.func(
+        'uint RegisterWindowMessageW(str16 lpString)',
+      ),
+      SendNotifyMessageW: user32.func(
+        'bool SendNotifyMessageW(uintptr_t hWnd, uint Msg, uint wParam, uint lParam)',
+      ),
+      OpenFileMappingW: kernel32.func(
+        'void* OpenFileMappingW(uint dwDesiredAccess, bool bInheritHandle, str16 lpName)',
+      ),
+      CloseHandle: kernel32.func('bool CloseHandle(void* hObject)'),
+      MapViewOfFile: kernel32.func(
+        'void* MapViewOfFile(void* hFileMappingObject, uint dwDesiredAccess, uint dwFileOffsetHigh, uint dwFileOffsetLow, uintptr_t dwNumberOfBytesToMap)',
+      ),
+      UnmapViewOfFile: kernel32.func(
+        'bool UnmapViewOfFile(void* lpBaseAddress)',
+      ),
+      _koffi: koffi,
+    };
   }
 
-  private async initializeWindowsApi(): Promise<void> {
-    try {
-      const user32 = koffi.load('user32.dll');
-      const kernel32 = koffi.load('kernel32.dll');
-
-      this.windowsApi = {
-        RegisterWindowMessageW: user32.func(
-          'uint RegisterWindowMessageW(str16 lpString)',
-        ),
-        SendNotifyMessageW: user32.func(
-          'bool SendNotifyMessageW(uintptr_t hWnd, uint Msg, uint wParam, uint lParam)',
-        ),
-        OpenEventW: kernel32.func(
-          'void* OpenEventW(uint dwDesiredAccess, bool bInheritHandle, str16 lpName)',
-        ),
-        WaitForSingleObject: kernel32.func(
-          'uint WaitForSingleObject(void* hHandle, uint dwMilliseconds)',
-        ),
-        CloseHandle: kernel32.func('bool CloseHandle(void* hObject)'),
-        OpenFileMappingW: kernel32.func(
-          'void* OpenFileMappingW(uint dwDesiredAccess, bool bInheritHandle, str16 lpName)',
-        ),
-        MapViewOfFile: kernel32.func(
-          'void* MapViewOfFile(void* hFileMappingObject, uint dwDesiredAccess, uint dwFileOffsetHigh, uint dwFileOffsetLow, uintptr_t dwNumberOfBytesToMap)',
-        ),
-        UnmapViewOfFile: kernel32.func(
-          'bool UnmapViewOfFile(void* lpBaseAddress)',
-        ),
-        _koffi: koffi,
-      };
-    } catch (e) {
-      console.debug(
-        'Windows API libraries not available. Broadcast messages will not work, but regular telemetry access should still function on supported platforms.',
-        e,
+  async connect(): Promise<void> {
+    const isRunning = await checkSimStatus();
+    if (!isRunning) {
+      throw new Error(
+        'iRacing does not appear to be running. Please start iRacing before connecting.',
       );
     }
-  }
 
-  async startup(testFile?: string, dumpTo?: string): Promise<boolean> {
-    try {
-      // Ensure Windows API is fully initialized before proceeding
-      if (this.windowsApiReady) {
-        await this.windowsApiReady;
-      }
+    if (this.sharedMem) {
+      console.warn('Shared memory already initialized');
+      return;
+    }
 
-      if (!testFile) {
-        const isRunning = await checkSimStatus();
-        if (!isRunning) {
-          console.warn('iRacing does not appear to be running');
-        }
+    this.sharedMem = this.openSharedMemory();
+    this.header = new Header(this.sharedMem);
+    this.isInitialized =
+      this.header.version >= 1 && this.header.varBuf.length > 0;
 
-        if (this.windowsApi?.OpenEventW) {
-          this.dataValidEvent = this.windowsApi.OpenEventW(
-            0x00100000,
-            false,
-            DATAVALIDEVENTNAME,
-          );
-        }
-      }
-
-      if (!(await this.waitValidDataEvent())) {
-        this.dataValidEvent = null;
-        return false;
-      }
-
-      if (!this.sharedMem) {
-        if (testFile) {
-          this.testFile = fs.createReadStream(testFile);
-          const buffer = await this.readFileToBuffer(this.testFile);
-          this.sharedMem = [...buffer];
-        } else if (process.platform === 'win32') {
-          const mem = this.openSharedMemory();
-          if (!mem) {
-            console.error(
-              'Failed to open iRacing shared memory. Make sure iRacing is running.',
-            );
-            return false;
-          }
-          this.sharedMem = mem;
-        } else {
-          console.error('iRacing SDK only works on Windows');
-          return false;
-        }
-      }
-
-      if (this.sharedMem) {
-        if (dumpTo) {
-          fs.writeFileSync(dumpTo, Buffer.from(this.sharedMem));
-        }
-
-        this.header = new Header(this.sharedMem);
-        this.isInitialized =
-          this.header.version >= 1 && this.header.varBuf.length > 0;
-
-        if (this.isInitialized) {
-          this.initVarHeaders();
-        }
-      }
-
-      return this.isInitialized;
-    } catch (error) {
-      console.error('Failed to startup IRSDK:', error);
-      return false;
+    if (this.isInitialized) {
+      this.initVarHeaders();
     }
   }
 
@@ -194,30 +126,21 @@ export class IRSDK extends EventEmitter {
 
     try {
       this.windowsApi.UnmapViewOfFile(this.memMapView);
-      this.memMapView = null;
       this.windowsApi.CloseHandle(this.memMapHandle);
-      this.memMapHandle = null;
     } catch (error) {
       // ignore cleanup errors
       console.debug('Error during shutdown cleanup, but ignoring:', error);
     }
 
-    if (this.sharedMem) {
-      this.sharedMem = null;
-    }
-
+    this.memMapHandle = null;
+    this.memMapView = null;
+    this.sharedMem = null;
     this.header = null;
-    this.dataValidEvent = null;
     this.varHeaders = null;
     this.varHeadersDict.clear();
     this.varHeadersNames = null;
     this.varBufferLatest = null;
     this.sessionInfoDict.clear();
-
-    if (this.testFile) {
-      this.testFile.destroy();
-      this.testFile = null;
-    }
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
@@ -304,41 +227,19 @@ export class IRSDK extends EventEmitter {
   }
 
   isConnected(): boolean {
-    if (!this.header) {
+    if (this.header === null) {
       return false;
     }
 
-    if (this.header.status === STATUS_FIELD.STATUS_CONNECTED) {
-      this.workaroundConnectedState = 0;
+    if (this.header.status !== STATUS_CONNECTED) {
+      return false;
     }
 
-    if (
-      this.workaroundConnectedState === 0 &&
-      this.header.status !== STATUS_FIELD.STATUS_CONNECTED
-    ) {
-      this.workaroundConnectedState = 1;
+    if (this.get(VARS.SESSION_NUM) === null) {
+      return false;
     }
 
-    if (
-      this.workaroundConnectedState === 1 &&
-      (this.get('SessionNum') === null || this.testFile)
-    ) {
-      this.workaroundConnectedState = 2;
-    }
-
-    if (
-      this.workaroundConnectedState === 2 &&
-      this.get('SessionNum') !== null
-    ) {
-      this.workaroundConnectedState = 3;
-    }
-
-    return (
-      this.header !== null &&
-      (this.testFile !== null || this.dataValidEvent) &&
-      (this.header.status === STATUS_FIELD.STATUS_CONNECTED ||
-        this.workaroundConnectedState === 3)
-    );
+    return true;
   }
 
   get sessionInfoUpdate(): number {
@@ -358,7 +259,6 @@ export class IRSDK extends EventEmitter {
   freezeVarBufferLatest(): void {
     this.unfreezeVarBufferLatest();
     this.refreshSharedMemory();
-    this.waitValidDataEventSync();
 
     if (this.header) {
       const sorted = [...this.header.varBuf].sort(
@@ -376,187 +276,47 @@ export class IRSDK extends EventEmitter {
     }
   }
 
-  camSwitchPos(
-    position: number = 0,
-    group: number = 1,
-    camera: number = 0,
-  ): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.CAM_SWITCH_POS,
-      position,
-      group,
-      camera,
-    );
-  }
-
-  camSwitchNum(
-    carNumber: string | number = '1',
-    group: number = 1,
-    camera: number = 0,
-  ): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.CAM_SWITCH_NUM,
-      padCarNumber(carNumber),
-      group,
-      camera,
-    );
-  }
-
-  camSetState(cameraState: number = CAMERA_STATE.CAM_TOOL_ACTIVE): boolean {
-    return this.broadcastMsg(BROADCAST_MSG.CAM_SET_STATE, cameraState);
-  }
-
-  replaySetPlaySpeed(speed: number = 0, slowMotion: boolean = false): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.REPLAY_SET_PLAY_SPEED,
-      speed,
-      slowMotion ? 1 : 0,
-    );
-  }
-
-  replaySetPlayPosition(
-    posMode: number = RPY_POS_MODE.BEGIN,
-    frameNum: number = 0,
-  ): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.REPLAY_SET_PLAY_POSITION,
-      posMode,
-      frameNum,
-    );
-  }
-
-  replaySearch(searchMode: number = RPY_SRCH_MODE.TO_START): boolean {
-    return this.broadcastMsg(BROADCAST_MSG.REPLAY_SEARCH, searchMode);
-  }
-
-  replaySetState(stateMode: number = RPY_STATE_MODE.ERASE_TAPE): boolean {
-    return this.broadcastMsg(BROADCAST_MSG.REPLAY_SET_STATE, stateMode);
-  }
-
-  reloadAllTextures(): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.RELOAD_TEXTURES,
-      RELOAD_TEXTURES_MODE.ALL,
-    );
-  }
-
-  reloadTexture(carIdx: number = 0): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.RELOAD_TEXTURES,
-      RELOAD_TEXTURES_MODE.CAR_IDX,
-      carIdx,
-    );
-  }
-
-  chatCommand(chatCommandMode: number = CHAT_COMMAND_MODE.BEGIN_CHAT): boolean {
-    return this.broadcastMsg(BROADCAST_MSG.CHAT_COMMAND, chatCommandMode);
-  }
-
-  chatCommandMacro(macroNum: number = 0): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.CHAT_COMMAND,
-      CHAT_COMMAND_MODE.MACRO,
-      macroNum,
-    );
-  }
-
-  pitCommand(
-    pitCommandMode: number = PIT_COMMAND_MODE.CLEAR,
-    variable: number = 0,
-  ): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.PIT_COMMAND,
-      pitCommandMode,
-      variable,
-    );
-  }
-
-  telemCommand(telemCommandMode: number = TELEM_COMMAND_MODE.STOP): boolean {
-    return this.broadcastMsg(BROADCAST_MSG.TELEM_COMMAND, telemCommandMode);
-  }
-
-  ffbCommand(
-    ffbCommandMode: number = FFB_COMMAND_MODE.FFB_COMMAND_MAX_FORCE,
-    value: number = 0,
-  ): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.FFB_COMMAND,
-      ffbCommandMode,
-      Math.floor(value * 65536),
-    );
-  }
-
-  replaySearchSessionTime(
-    sessionNum: number = 0,
-    sessionTimeMs: number = 0,
-  ): boolean {
-    return this.broadcastMsg(
-      BROADCAST_MSG.REPLAY_SEARCH_SESSION_TIME,
-      sessionNum,
-      sessionTimeMs,
-    );
-  }
-
-  videoCapture(
-    videoCaptureMode: number = VIDEO_CAPTURE_MODE.TRIGGER_SCREEN_SHOT,
-  ): boolean {
-    return this.broadcastMsg(BROADCAST_MSG.VIDEO_CAPTURE, videoCaptureMode);
-  }
-
   // Private methods
 
-  private openSharedMemory(): number[] | null {
-    if (!this.windowsApi?.OpenFileMappingW || !this.windowsApi?.MapViewOfFile) {
-      console.error(
-        'Windows kernel32 APIs (OpenFileMappingW/MapViewOfFile) are not available. ' +
-          'Install koffi: npm install koffi',
+  private openSharedMemory(): number[] {
+    this.memMapHandle = this.windowsApi.OpenFileMappingW(
+      0x0004,
+      false,
+      MEMMAPFILE,
+    );
+
+    if (!this.memMapHandle) {
+      throw new Error(
+        `Failed to open iRacing shared memory mapping "${MEMMAPFILE}". Ensure iRacing is running and the sim is active.`,
       );
-      return null;
     }
 
-    try {
-      // FILE_MAP_READ = 0x0004
-      const handle = this.windowsApi.OpenFileMappingW(
-        0x0004,
-        false,
-        MEMMAPFILE,
-      );
+    this.memMapView = this.windowsApi.MapViewOfFile(
+      this.memMapHandle,
+      0x0004,
+      0,
+      0,
+      MEMMAPFILESIZE,
+    );
 
-      if (!handle) {
-        console.error(
-          `Failed to open iRacing shared memory mapping "${MEMMAPFILE}". ` +
-            'Ensure iRacing is running and the sim is active.',
-        );
-        return null;
-      }
-
-      this.memMapHandle = handle;
-
-      // FILE_MAP_READ = 0x0004
-      const view = this.windowsApi.MapViewOfFile(
-        handle,
-        0x0004,
-        0,
-        0,
-        MEMMAPFILESIZE,
-      );
-
-      if (!view) {
-        console.error('Failed to map view of iRacing shared memory.');
-        this.windowsApi.CloseHandle(handle);
-        this.memMapHandle = null;
-        return null;
-      }
-
-      this.memMapView = view;
-
-      // koffi.decode returns a plain JS Array of uint8 values — exactly what we need
-      const koffi = this.windowsApi._koffi;
-      return koffi.decode(view, koffi.types.uint8, MEMMAPFILESIZE);
-    } catch (error) {
-      console.error('Error opening Windows shared memory:', error);
-      return null;
+    if (!this.memMapView) {
+      this.windowsApi.CloseHandle(this.memMapHandle);
+      this.memMapHandle = null;
+      throw new Error('Failed to map view of iRacing shared memory.');
     }
+
+    // koffi.decode returns a plain JS Array of uint8 values — exactly what we need
+    const sharedMem = this.windowsApi._koffi.decode(
+      this.memMapView,
+      koffi.types.uint8,
+      MEMMAPFILESIZE,
+    );
+
+    if (!Array.isArray(sharedMem) || sharedMem.length === 0) {
+      throw new Error('Decoded shared memory is not a valid array.');
+    }
+
+    return sharedMem;
   }
 
   /**
@@ -564,26 +324,15 @@ export class IRSDK extends EventEmitter {
    * Call this before reading telemetry to get up-to-date values.
    */
   private refreshSharedMemory(): void {
-    if (!this.memMapView || !this.sharedMem || !this.windowsApi?._koffi) {
+    if (!this.memMapView || !this.sharedMem || !this.windowsApi._koffi) {
       return;
     }
-    try {
-      const koffi = this.windowsApi._koffi;
-      const fresh: number[] = koffi.decode(
-        this.memMapView,
-        koffi.types.uint8,
-        MEMMAPFILESIZE,
-      );
-      // Overwrite in-place so all existing references (header, varHeaders, etc.) see the new data
-      for (let i = 0; i < fresh.length; i++) {
-        this.sharedMem[i] = fresh[i];
-      }
-    } catch (error) {
-      console.error(
-        'Error refreshing shared memory data. Data may be stale.',
-        error,
-      );
-    }
+
+    this.sharedMem = this.windowsApi._koffi.decode(
+      this.memMapView,
+      koffi.types.uint8,
+      MEMMAPFILESIZE,
+    );
   }
 
   private initVarHeaders() {
@@ -673,68 +422,11 @@ export class IRSDK extends EventEmitter {
     );
   }
 
-  private async waitValidDataEvent(): Promise<boolean> {
-    if (this.dataValidEvent && this.windowsApi?.WaitForSingleObject) {
-      const result = this.windowsApi.WaitForSingleObject(
-        this.dataValidEvent,
-        32,
-      );
-      return result === 0;
-    }
-    // No event handle available — allow proceeding so shared memory can be read directly
-    return true;
-  }
-
-  private waitValidDataEventSync(): boolean {
-    // For synchronous wait, we just return true for now
-    // In a real implementation, this would use Windows APIs
-    return true;
-  }
-
-  private broadcastMsg(
-    broadcastType: number,
-    var1: number = 0,
-    var2: number = 0,
-    var3: number = 0,
-  ): boolean {
-    if (!this.windowsApi) {
-      console.warn('Windows API not available. Broadcast message not sent.');
-      return false;
-    }
-
-    try {
-      const msgId = this.getBroadcastMsgId();
-      if (!msgId) {
-        return false;
-      }
-
-      return this.windowsApi.SendNotifyMessageW(
-        0xffff,
-        msgId,
-        (broadcastType | (var1 << 16)) >>> 0,
-        (var2 | (var3 << 16)) >>> 0,
-      );
-    } catch (error) {
-      console.error('Failed to send broadcast message:', error);
-      return false;
-    }
-  }
-
-  private getBroadcastMsgId(): number | null {
-    if (this.broadcastMsgId === null && this.windowsApi) {
-      try {
-        this.broadcastMsgId =
-          this.windowsApi.RegisterWindowMessageW(BROADCASTMSGNAME);
-      } catch (error) {
-        console.error('Failed to register broadcast message:', error);
-        return null;
-      }
-    }
-    return this.broadcastMsgId;
-  }
-
-  // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
-  private unpackValue(data: number[], offset: number, typeChar: string): any {
+  private unpackValue(
+    data: number[],
+    offset: number,
+    typeChar: string,
+  ): number | boolean {
     const bytes = new Uint8Array(data.slice(offset, offset + 8));
     const view = new DataView(bytes.buffer);
 
@@ -770,20 +462,5 @@ export class IRSDK extends EventEmitter {
       default:
         return 0;
     }
-  }
-
-  private readFileToBuffer(stream: fs.ReadStream): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      stream.on('data', (chunk: Buffer | string) => {
-        if (typeof chunk === 'string') {
-          chunks.push(Buffer.from(chunk));
-        } else {
-          chunks.push(chunk);
-        }
-      });
-      stream.on('end', () => resolve(Buffer.concat(chunks)));
-      stream.on('error', reject);
-    });
   }
 }

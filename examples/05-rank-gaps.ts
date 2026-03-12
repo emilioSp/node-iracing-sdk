@@ -16,7 +16,8 @@
  *                         current track location (s); diff = live gap
  */
 
-import { IRSDK, VARS } from '../src/index.ts';
+import { IRSDK } from '../src/irsdk.ts';
+import { VARS } from '../src/vars.ts';
 
 const formatTime = (s: number): string => {
   if (s <= 0) return '  --:--.---';

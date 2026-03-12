@@ -2,7 +2,9 @@ import path from 'node:path';
 import { IRSDK } from '../src/irsdk.ts';
 import { VARS } from '../src/vars.ts';
 
-const ir = IRSDK.fromDump(path.join(import.meta.dirname, 'shared-memory.bin'));
+const ir = IRSDK.fromDump(
+  path.join(import.meta.dirname, '..', 'fixture', 'shared-memory.bin'),
+);
 
 console.log('speed', ir.get(VARS.SPEED));
 console.log('rpm', ir.get(VARS.RPM));

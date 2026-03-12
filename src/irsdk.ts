@@ -67,6 +67,40 @@ export class IRSDK {
   // biome-ignore lint/suspicious/noExplicitAny: Windows mapped view pointer
   private memMapView: any = null;
 
+  static fromDump(filePath: string): IRSDK {
+    const instance = Object.create(IRSDK.prototype) as IRSDK;
+    instance.isInitialized = false;
+    instance.lastSessionInfoUpdate = 0;
+    instance.parseYamlAsync = false;
+    instance.varHeaders = null;
+    instance.varHeadersDict = new Map();
+    instance.varHeadersNames = null;
+    instance.varBufferLatest = null;
+    instance.sessionInfoDict = new Map();
+    instance.memMapHandle = null;
+    instance.memMapView = null;
+    instance.windowsApi = {
+      RegisterWindowMessageW: () => 0,
+      SendNotifyMessageW: () => false,
+      CloseHandle: () => {},
+      OpenFileMappingW: () => {},
+      MapViewOfFile: () => {},
+      UnmapViewOfFile: () => {},
+    };
+
+    const buffer = fs.readFileSync(filePath);
+    instance.sharedMem = Array.from(new Uint8Array(buffer));
+    instance.header = new Header(instance.sharedMem);
+    instance.isInitialized =
+      instance.header.version >= 1 && instance.header.varBuf.length > 0;
+
+    if (instance.isInitialized) {
+      instance.initVarHeaders();
+    }
+
+    return instance;
+  }
+
   constructor(parseYamlAsync: boolean = false) {
     this.parseYamlAsync = parseYamlAsync;
 

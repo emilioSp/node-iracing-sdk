@@ -32,7 +32,7 @@ async function main() {
     const fuel = ir.get(VARS.FUEL_LEVEL) || 0;
     const fuelPerLap = ir.get(VARS.FUEL_USE_PER_HOUR) || 0;
     const lapCount = ir.get(VARS.LAP) || 0;
-    const lapDistance = ir.get('LapDist') || 0;
+    const lapDistance = ir.get(VARS.LAP_DIST) || 0;
 
     // Clear screen and display
     console.clear();

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import koffi from 'koffi';
 import {
   Header,
@@ -274,6 +276,38 @@ export class IRSDK {
       this.varBufferLatest.unfreeze();
       this.varBufferLatest = null;
     }
+  }
+
+  dumpSharedMemory(outputPath: string): void {
+    if (!this.sharedMem) {
+      console.warn('Shared memory not initialized. Call connect() first.');
+      return;
+    }
+
+    if (!this.header) {
+      console.warn('Header not initialized. Call connect() first.');
+      return;
+    }
+
+    console.log(`  Version: ${this.header.version}`);
+    console.log(`  Status: ${this.header.status}`);
+    console.log(`  Tick Rate: ${this.header.tickRate}`);
+    console.log(`  Num Vars: ${this.header.numVars}`);
+    console.log(`  Session Info Len: ${this.header.sessionInfoLen}`);
+    console.log(`  Num Buffers: ${this.header.numBuf}`);
+    console.log(`  Buffer Len: ${this.header.bufLen}`);
+
+    const outputDir = path.dirname(outputPath);
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    const buffer = Buffer.from(new Uint8Array(this.sharedMem));
+    fs.writeFileSync(outputPath, buffer);
+
+    const sizeMB = (buffer.length / 1024 / 1024).toFixed(2);
+    console.log(`\n✓ Shared memory dumped to: ${outputPath}`);
+    console.log(`  Size: ${sizeMB} MB (${buffer.length} bytes)`);
   }
 
   // Private methods

@@ -14,10 +14,8 @@ interface LapRecord {
 }
 
 async function main() {
-  const ir = new IRSDK();
-
   console.log('Connecting to iRacing...');
-  await ir.connect();
+  const ir = await IRSDK.connect();
   console.log('Connected! Waiting for laps...\n');
 
   const laps: LapRecord[] = [];

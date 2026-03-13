@@ -8,10 +8,8 @@ import { IRSDK } from '../src/irsdk.ts';
 import { SESSION_DATA_KEYS, VARS } from '../src/vars.ts';
 
 async function main() {
-  const ir = new IRSDK();
-
   console.log('Connecting to iRacing...');
-  await ir.connect();
+  const ir = await IRSDK.connect();
   console.log('✓ Connected to iRacing');
   console.log(
     `Available telemetry variables: ${ir.getVarHeadersNamesList().length}\n`,

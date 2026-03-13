@@ -6,7 +6,6 @@ import {
   type VarBuffer as VarBufferClass,
   VarHeader,
 } from './structs.ts';
-import type { DriverInfo, SessionInfo, WeekendInfo } from './types.ts';
 import {
   checkSimStatus,
   extractYamlSection,
@@ -15,6 +14,7 @@ import {
 } from './utils.ts';
 import {
   type SessionDataKey,
+  type SessionDataValue,
   VAR_TYPE_MAP,
   VARS,
   type VarKey,
@@ -48,12 +48,6 @@ const MEMMAPFILESIZE = 1164 * 1024;
 
 const STATUS_CONNECTED = 1;
 
-type SessionDataMap = {
-  DriverInfo: DriverInfo;
-  SessionInfo: SessionInfo;
-  WeekendInfo: WeekendInfo;
-};
-
 export class IRSDK {
   private isInitialized: boolean = false;
   private lastSessionInfoUpdate: number = 0;
@@ -68,7 +62,14 @@ export class IRSDK {
   private varBufferLatest: VarBufferClass | null = null;
   private sessionInfoDict: Map<string, SessionInfoCache> = new Map();
 
-  private windowsApi: WindowsApi;
+  private windowsApi: WindowsApi = {
+    RegisterWindowMessageW: () => 0,
+    SendNotifyMessageW: () => false,
+    CloseHandle: () => {},
+    OpenFileMappingW: () => {},
+    MapViewOfFile: () => {},
+    UnmapViewOfFile: () => {},
+  };
   // biome-ignore lint/suspicious/noExplicitAny: Windows memory map handle
   private memMapHandle: any = null;
   // biome-ignore lint/suspicious/noExplicitAny: Windows mapped view pointer
@@ -86,14 +87,6 @@ export class IRSDK {
     instance.sessionInfoDict = new Map();
     instance.memMapHandle = null;
     instance.memMapView = null;
-    instance.windowsApi = {
-      RegisterWindowMessageW: () => 0,
-      SendNotifyMessageW: () => false,
-      CloseHandle: () => {},
-      OpenFileMappingW: () => {},
-      MapViewOfFile: () => {},
-      UnmapViewOfFile: () => {},
-    };
 
     const buffer = fs.readFileSync(filePath);
     instance.sharedMem = Array.from(new Uint8Array(buffer));
@@ -108,17 +101,25 @@ export class IRSDK {
     return instance;
   }
 
-  constructor(parseYamlAsync: boolean = false) {
-    this.parseYamlAsync = parseYamlAsync;
-
+  static async connect(): Promise<IRSDK> {
     if (process.platform !== 'win32') {
       throw new Error(`process.platform ${process.platform} is not supported`);
     }
 
+    const isRunning = await checkSimStatus();
+    if (!isRunning) {
+      throw new Error(
+        'iRacing does not appear to be running. Please start iRacing before connecting.',
+      );
+    }
+
+    const instance = new IRSDK();
+    instance.parseYamlAsync = false; // TODO: check this value
+
     const user32 = koffi.load('user32.dll');
     const kernel32 = koffi.load('kernel32.dll');
 
-    this.windowsApi = {
+    instance.windowsApi = {
       RegisterWindowMessageW: user32.func(
         'uint RegisterWindowMessageW(str16 lpString)',
       ),
@@ -136,29 +137,19 @@ export class IRSDK {
         'bool UnmapViewOfFile(void* lpBaseAddress)',
       ),
     };
-  }
 
-  async connect(): Promise<void> {
-    const isRunning = await checkSimStatus();
-    if (!isRunning) {
-      throw new Error(
-        'iRacing does not appear to be running. Please start iRacing before connecting.',
-      );
+    instance.sharedMem = instance.openSharedMemory();
+    instance.header = new Header(instance.sharedMem);
+    instance.isInitialized =
+      instance.header.version >= 1 && instance.header.varBuf.length > 0;
+
+    if (instance.isInitialized) {
+      instance.initVarHeaders();
+    } else {
+      throw new Error('Failed to initialize IRSDK instance from shared memory');
     }
 
-    if (this.sharedMem) {
-      console.warn('Shared memory already initialized');
-      return;
-    }
-
-    this.sharedMem = this.openSharedMemory();
-    this.header = new Header(this.sharedMem);
-    this.isInitialized =
-      this.header.version >= 1 && this.header.varBuf.length > 0;
-
-    if (this.isInitialized) {
-      this.initVarHeaders();
-    }
+    return instance;
   }
 
   shutdown(): void {
@@ -229,7 +220,7 @@ export class IRSDK {
 
   getSessionInfo<K extends SessionDataKey>(
     key: K,
-  ): K extends keyof SessionDataMap ? SessionDataMap[K] : unknown {
+  ): K extends keyof SessionDataValue ? SessionDataValue[K] : unknown {
     if (this.lastSessionInfoUpdate < this.sessionInfoUpdate) {
       this.lastSessionInfoUpdate = this.sessionInfoUpdate;
 

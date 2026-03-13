@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { IRSDK } from '../src/irsdk.ts';
-import { SESSION_DATA_KEYS, VARS } from '../src/vars.ts';
+import { VARS } from '../src/vars.ts';
 
 const ir = IRSDK.fromDump(
   path.join(import.meta.dirname, '..', 'fixture', 'shared-memory.bin'),

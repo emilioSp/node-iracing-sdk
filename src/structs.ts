@@ -60,8 +60,7 @@ export class IRSDKStruct {
     this._offset = offset;
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: Binary data can be various primitive types
-  protected getValue(offset: number, type: string): any {
+  protected getValue(offset: number, type: string): number | boolean {
     const absoluteOffset = this._offset + offset;
 
     switch (type) {
@@ -97,43 +96,43 @@ export class IRSDKStruct {
 
 export class Header extends IRSDKStruct {
   get version(): number {
-    return this.getValue(0, 'i');
+    return this.getValue(0, 'i') as number;
   }
 
   get status(): number {
-    return this.getValue(4, 'i');
+    return this.getValue(4, 'i') as number;
   }
 
   get tickRate(): number {
-    return this.getValue(8, 'i');
+    return this.getValue(8, 'i') as number;
   }
 
   get sessionInfoUpdate(): number {
-    return this.getValue(12, 'i');
+    return this.getValue(12, 'i') as number;
   }
 
   get sessionInfoLen(): number {
-    return this.getValue(16, 'i');
+    return this.getValue(16, 'i') as number;
   }
 
   get sessionInfoOffset(): number {
-    return this.getValue(20, 'i');
+    return this.getValue(20, 'i') as number;
   }
 
   get numVars(): number {
-    return this.getValue(24, 'i');
+    return this.getValue(24, 'i') as number;
   }
 
   get varHeaderOffset(): number {
-    return this.getValue(28, 'i');
+    return this.getValue(28, 'i') as number;
   }
 
   get numBuf(): number {
-    return this.getValue(32, 'i');
+    return this.getValue(32, 'i') as number;
   }
 
   get bufLen(): number {
-    return this.getValue(36, 'i');
+    return this.getValue(36, 'i') as number;
   }
 
   get varBuf(): VarBuffer[] {
@@ -156,11 +155,11 @@ export class VarBuffer extends IRSDKStruct {
   }
 
   get tickCount(): number {
-    return this.getValue(0, 'i');
+    return this.getValue(0, 'i') as number;
   }
 
   get _bufOffset(): number {
-    return this.getValue(4, 'i');
+    return this.getValue(4, 'i') as number;
   }
 
   get bufOffset(): number {
@@ -193,19 +192,19 @@ export class VarBuffer extends IRSDKStruct {
 
 export class VarHeader extends IRSDKStruct {
   get type(): number {
-    return this.getValue(0, 'i');
+    return this.getValue(0, 'i') as number;
   }
 
   get offset(): number {
-    return this.getValue(4, 'i');
+    return this.getValue(4, 'i') as number;
   }
 
   get count(): number {
-    return this.getValue(8, 'i');
+    return this.getValue(8, 'i') as number;
   }
 
   get countAsTime(): boolean {
-    return this.getValue(12, '?');
+    return this.getValue(12, '?') as boolean;
   }
 
   get name(): string {
@@ -223,24 +222,24 @@ export class VarHeader extends IRSDKStruct {
 
 export class DiskSubHeader extends IRSDKStruct {
   get sessionStartDate(): number {
-    const lo = this.getValue(0, 'i');
-    const hi = this.getValue(4, 'i');
+    const lo = this.getValue(0, 'i') as number;
+    const hi = this.getValue(4, 'i') as number;
     return hi * 0x100000000 + (lo >>> 0);
   }
 
   get sessionStartTime(): number {
-    return this.getValue(8, 'd');
+    return this.getValue(8, 'd') as number;
   }
 
   get sessionEndTime(): number {
-    return this.getValue(16, 'd');
+    return this.getValue(16, 'd') as number;
   }
 
   get sessionLapCount(): number {
-    return this.getValue(24, 'i');
+    return this.getValue(24, 'i') as number;
   }
 
   get sessionRecordCount(): number {
-    return this.getValue(28, 'i');
+    return this.getValue(28, 'i') as number;
   }
 }

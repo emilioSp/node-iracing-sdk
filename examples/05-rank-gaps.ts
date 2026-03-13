@@ -17,7 +17,7 @@
  */
 
 import { IRSDK } from '../src/irsdk.ts';
-import { VARS } from '../src/vars.ts';
+import { SESSION_DATA_KEYS, VARS } from '../src/vars.ts';
 
 const formatTime = (s: number): string => {
   if (s <= 0) return '  --:--.---';
@@ -64,8 +64,7 @@ async function main() {
 
   const refreshIRatingMap = () => {
     const update: number = ir.get(VARS.SESSION_TICK) ?? 0; // use as dirty-check proxy
-    const driverInfo = ir.getSessionInfo('DriverInfo');
-    if (!driverInfo?.Drivers) return;
+    const driverInfo = ir.getSessionInfo(SESSION_DATA_KEYS.DRIVER_INFO);
     if (update === lastSessionInfoUpdate && iRatingMap.size > 0) return;
     lastSessionInfoUpdate = update;
 

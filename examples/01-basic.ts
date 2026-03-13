@@ -31,8 +31,10 @@ async function main() {
   // Read session data
   console.log('\n=== Session Data ===');
   const weekendInfo = ir.getSessionInfo(SESSION_DATA_KEYS.WEEKEND_INFO);
-  console.log(`Track: ${weekendInfo?.TrackDisplayName || 'N/A'}`);
-  console.log(`Series: ${weekendInfo?.SeriesName || 'N/A'}`);
+  console.log(`Track: ${weekendInfo.TrackDisplayName || 'N/A'}`);
+  console.log(
+    `Telemetry disk file name: ${weekendInfo.TelemetryOptions.TelemetryDiskFile || 'N/A'}`,
+  );
 
   const driverInfo = ir.getSessionInfo(SESSION_DATA_KEYS.DRIVER_INFO);
   const driver = driverInfo?.Drivers?.[0];

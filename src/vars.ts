@@ -659,7 +659,7 @@ export type VarKey = (typeof VARS)[keyof typeof VARS];
 
 export const SESSION_DATA_KEYS = {
   WEEKEND_INFO: 'WeekendInfo',
-  SESSION_INFO: 'SessionList',
+  SESSION_INFO: 'SessionInfo',
   CAMERA_INFO: 'CameraInfo',
   RADIO_INFO: 'RadioInfo',
   DRIVER_INFO: 'DriverInfo',

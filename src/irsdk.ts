@@ -6,6 +6,7 @@ import {
   type VarBuffer as VarBufferClass,
   VarHeader,
 } from './structs.ts';
+import type { DriverInfo, SessionInfo, WeekendInfo } from './types.ts';
 import {
   checkSimStatus,
   extractYamlSection,
@@ -46,6 +47,12 @@ const MEMMAPFILE = 'Local\\IRSDKMemMapFileName';
 const MEMMAPFILESIZE = 1164 * 1024;
 
 const STATUS_CONNECTED = 1;
+
+type SessionDataMap = {
+  DriverInfo: DriverInfo;
+  SessionInfo: SessionInfo;
+  WeekendInfo: WeekendInfo;
+};
 
 export class IRSDK {
   private isInitialized: boolean = false;
@@ -220,7 +227,9 @@ export class IRSDK {
     throw new Error(`Key ${key} not found in var headers`);
   }
 
-  getSessionInfo(key: SessionDataKey): any {
+  getSessionInfo<K extends SessionDataKey>(
+    key: K,
+  ): K extends keyof SessionDataMap ? SessionDataMap[K] : unknown {
     if (this.lastSessionInfoUpdate < this.sessionInfoUpdate) {
       this.lastSessionInfoUpdate = this.sessionInfoUpdate;
 
@@ -236,10 +245,8 @@ export class IRSDK {
       this.sessionInfoDict.set(key, { data: null });
     }
 
-    const cache = this.sessionInfoDict.get(key);
-    if (!cache) {
-      return null;
-    }
+    // biome-ignore lint/style/noNonNullAssertion: We just ensured this above with has() check
+    const cache = this.sessionInfoDict.get(key)!;
 
     if (cache.data) {
       return cache.data;

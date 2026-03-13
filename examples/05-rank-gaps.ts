@@ -61,7 +61,7 @@ async function main() {
   let lastSessionInfoUpdate = -1;
 
   const refreshIRatingMap = () => {
-    const update: number = ir.get(VARS.SESSION_TICK) ?? 0; // use as dirty-check proxy
+    const update: number = ir.get(VARS.SESSION_TICK)[0] ?? 0; // use as dirty-check proxy
     const driverInfo = ir.getSessionInfo(SESSION_DATA_KEYS.DRIVER_INFO);
     if (update === lastSessionInfoUpdate && iRatingMap.size > 0) return;
     lastSessionInfoUpdate = update;
@@ -90,16 +90,12 @@ async function main() {
     // Refresh iRating map from session YAML (cheap if unchanged)
     refreshIRatingMap();
 
-    ir.freezeVarBufferLatest();
-
     // ── Raw data from shared memory ──────────────────────────────────────────
-    const playerIdx: number = ir.get(VARS.PLAYER_CAR_IDX) ?? -1;
+    const playerIdx: number = ir.get(VARS.PLAYER_CAR_IDX)[0] ?? -1;
     const positions: number[] = ir.get(VARS.CAR_IDX_POSITION) ?? [];
     const lastLaps: number[] = ir.get(VARS.CAR_IDX_LAST_LAP_TIME) ?? [];
     const estTimes: number[] = ir.get(VARS.CAR_IDX_EST_TIME) ?? [];
-    const sessionTime: number = ir.get(VARS.SESSION_TIME) ?? 0;
-
-    ir.unfreezeVarBufferLatest();
+    const sessionTime: number = ir.get(VARS.SESSION_TIME)[0] ?? 0;
 
     if (playerIdx < 0 || positions.length === 0) return;
 

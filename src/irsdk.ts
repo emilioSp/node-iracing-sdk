@@ -1,11 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import koffi from 'koffi';
-import {
-  Header,
-  type VarBuffer as VarBufferClass,
-  VarHeader,
-} from './structs.ts';
+import { Header, VarHeader } from './structs.ts';
 import {
   checkSimStatus,
   extractYamlSection,
@@ -54,12 +50,13 @@ export class IRSDK {
   private parseYamlAsync: boolean = false;
 
   private sharedMem: number[] | null = null;
-  private header: Header | null = null;
+  // @ts-expect-error
+  private header: Header;
 
-  private varHeaders: VarHeader[] | null = null;
-  private varHeadersDict: Map<string, VarHeader> = new Map();
+  // @ts-expect-error
+  private varHeaders: VarHeader[];
+  private varHeadersMap: Map<string, VarHeader> = new Map();
   private varHeadersNames: string[] | null = null;
-  private varBufferLatest: VarBufferClass | null = null;
   private sessionInfoDict: Map<string, SessionInfoCache> = new Map();
 
   private windowsApi: WindowsApi = {
@@ -80,10 +77,8 @@ export class IRSDK {
     instance.isInitialized = false;
     instance.lastSessionInfoUpdate = 0;
     instance.parseYamlAsync = false;
-    instance.varHeaders = null;
-    instance.varHeadersDict = new Map();
+    instance.varHeadersMap = new Map();
     instance.varHeadersNames = null;
-    instance.varBufferLatest = null;
     instance.sessionInfoDict = new Map();
     instance.memMapHandle = null;
     instance.memMapView = null;
@@ -91,8 +86,7 @@ export class IRSDK {
     const buffer = fs.readFileSync(filePath);
     instance.sharedMem = Array.from(new Uint8Array(buffer));
     instance.header = new Header(instance.sharedMem);
-    instance.isInitialized =
-      instance.header.version >= 1 && instance.header.varBuf.length > 0;
+    instance.isInitialized = instance.header.version >= 1;
 
     if (instance.isInitialized) {
       instance.initVarHeaders();
@@ -140,8 +134,7 @@ export class IRSDK {
 
     instance.sharedMem = instance.openSharedMemory();
     instance.header = new Header(instance.sharedMem);
-    instance.isInitialized =
-      instance.header.version >= 1 && instance.header.varBuf.length > 0;
+    instance.isInitialized = instance.header.version >= 1;
 
     if (instance.isInitialized) {
       instance.initVarHeaders();
@@ -167,55 +160,35 @@ export class IRSDK {
     this.memMapHandle = null;
     this.memMapView = null;
     this.sharedMem = null;
-    this.header = null;
-    this.varHeaders = null;
-    this.varHeadersDict.clear();
+    this.varHeadersMap.clear();
     this.varHeadersNames = null;
-    this.varBufferLatest = null;
     this.sessionInfoDict.clear();
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
-  get(key: VarKey): any {
-    if (!this.isInitialized || !this.header) {
-      return undefined;
+  get(key: VarKey): Array<any> {
+    const varHeader = this.varHeadersMap.get(key);
+    if (!varHeader) {
+      throw new Error(`Key ${key} not found in var headers`);
     }
 
-    // Refresh shared memory for live data when not frozen
-    if (!this.varBufferLatest) {
-      this.refreshSharedMemory();
+    const varBuffer = this.header.getVarBuffer();
+
+    const memory = varBuffer.getMemory();
+    const offset = varBuffer.bufOffset + varHeader.offset;
+    const typeChar = VAR_TYPE_MAP[varHeader.type];
+
+    const result: any[] = [];
+    for (let i = 0; i < varHeader.count; i++) {
+      result.push(
+        this.unpackValue(
+          memory,
+          offset + i * this.getTypeSize(typeChar),
+          typeChar,
+        ),
+      );
     }
-
-    const varHeader = this.varHeadersDict.get(key);
-    if (varHeader) {
-      const varBufLatest = this.getVarBufferLatest();
-      if (!varBufLatest) {
-        return undefined;
-      }
-
-      const memory = varBufLatest.getMemory();
-      const offset = varBufLatest.bufOffset + varHeader.offset;
-      const typeChar = VAR_TYPE_MAP[varHeader.type];
-
-      if (varHeader.count === 1) {
-        return this.unpackValue(memory, offset, typeChar);
-      } else {
-        // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
-        const result: any[] = [];
-        for (let i = 0; i < varHeader.count; i++) {
-          result.push(
-            this.unpackValue(
-              memory,
-              offset + i * this.getTypeSize(typeChar),
-              typeChar,
-            ),
-          );
-        }
-        return result;
-      }
-    }
-
-    throw new Error(`Key ${key} not found in var headers`);
+    return result;
   }
 
   getSessionInfo<K extends SessionDataKey>(
@@ -288,26 +261,6 @@ export class IRSDK {
     return this.varHeadersNames || [];
   }
 
-  freezeVarBufferLatest(): void {
-    this.unfreezeVarBufferLatest();
-    this.refreshSharedMemory();
-
-    if (this.header) {
-      const sorted = [...this.header.varBuf].sort(
-        (a, b) => b.tickCount - a.tickCount,
-      );
-      this.varBufferLatest = sorted[0];
-      this.varBufferLatest.freeze();
-    }
-  }
-
-  unfreezeVarBufferLatest(): void {
-    if (this.varBufferLatest) {
-      this.varBufferLatest.unfreeze();
-      this.varBufferLatest = null;
-    }
-  }
-
   dumpSharedMemory(outputPath: string): void {
     if (!this.sharedMem) {
       console.warn('Shared memory not initialized. Call connect() first.');
@@ -324,7 +277,7 @@ export class IRSDK {
     console.log(`  Tick Rate: ${this.header.tickRate}`);
     console.log(`  Num Vars: ${this.header.numVars}`);
     console.log(`  Session Info Len: ${this.header.sessionInfoLen}`);
-    console.log(`  Num Buffers: ${this.header.numBuf}`);
+    console.log(`  Num Buffers: ${this.header.getNumBuf}`);
     console.log(`  Buffer Len: ${this.header.bufLen}`);
 
     const outputDir = path.dirname(outputPath);
@@ -338,6 +291,33 @@ export class IRSDK {
     const sizeMB = (buffer.length / 1024 / 1024).toFixed(2);
     console.log(`\n✓ Shared memory dumped to: ${outputPath}`);
     console.log(`  Size: ${sizeMB} MB (${buffer.length} bytes)`);
+  }
+
+  /**
+   * Re-reads the latest data from the mapped shared memory into this.sharedMem.
+   * Call this before reading telemetry to get up-to-date values.
+   */
+  refreshSharedMemory(): void {
+    if (!this.memMapView || !this.sharedMem) {
+      return;
+    }
+
+    try {
+      const fresh: number[] = koffi.decode(
+        this.memMapView,
+        koffi.types.uint8,
+        MEMMAPFILESIZE,
+      );
+      // Overwrite in-place so all existing references (header, varHeaders, etc.) see the new data
+      for (let i = 0; i < fresh.length; i++) {
+        this.sharedMem[i] = fresh[i];
+      }
+    } catch (error) {
+      console.error(
+        'Error refreshing shared memory data. Data may be stale.',
+        error,
+      );
+    }
   }
 
   // Private methods
@@ -379,37 +359,10 @@ export class IRSDK {
     return sharedMem;
   }
 
-  /**
-   * Re-reads the latest data from the mapped shared memory into this.sharedMem.
-   * Call this before reading telemetry to get up-to-date values.
-   */
-  private refreshSharedMemory(): void {
-    if (!this.memMapView || !this.sharedMem) {
-      return;
-    }
-
-    try {
-      const fresh: number[] = koffi.decode(
-        this.memMapView,
-        koffi.types.uint8,
-        MEMMAPFILESIZE,
-      );
-      // Overwrite in-place so all existing references (header, varHeaders, etc.) see the new data
-      for (let i = 0; i < fresh.length; i++) {
-        this.sharedMem[i] = fresh[i];
-      }
-    } catch (error) {
-      console.error(
-        'Error refreshing shared memory data. Data may be stale.',
-        error,
-      );
-    }
-  }
-
   private initVarHeaders() {
     if (!this.varHeaders && this.header && this.sharedMem) {
       this.varHeaders = [];
-      this.varHeadersDict.clear();
+      this.varHeadersMap.clear();
 
       for (let i = 0; i < this.header.numVars; i++) {
         const varHeader = new VarHeader(
@@ -417,25 +370,16 @@ export class IRSDK {
           this.header.varHeaderOffset + i * 144,
         );
         this.varHeaders.push(varHeader);
-        this.varHeadersDict.set(varHeader.name, varHeader);
+        if (varHeader.count !== 1)
+          console.log(
+            'varHeader',
+            varHeader.name,
+            varHeader.type,
+            varHeader.count,
+          );
+        this.varHeadersMap.set(varHeader.name, varHeader);
       }
     }
-  }
-
-  private getVarBufferLatest(): VarBufferClass | null {
-    if (this.varBufferLatest) {
-      return this.varBufferLatest;
-    }
-
-    if (!this.header) {
-      return null;
-    }
-
-    // Return 2nd most recent var buffer (to avoid partially updated buffers)
-    const sorted = [...this.header.varBuf].sort(
-      (a, b) => b.tickCount - a.tickCount,
-    );
-    return sorted.length > 1 ? sorted[1] : sorted[0];
   }
 
   private parseYamlContent(key: string, cache: SessionInfoCache): void {

@@ -19,12 +19,14 @@ async function main() {
 
   // Read some telemetry data
   console.log('=== Current Telemetry ===');
-  console.log(`Speed: ${ir.get(VARS.SPEED)?.toFixed(2) || 'N/A'} m/s`);
-  console.log(`RPM: ${ir.get(VARS.RPM)?.toFixed(0) || 'N/A'}`);
-  console.log(`Gear: ${ir.get(VARS.GEAR) || 'N/A'}`);
-  console.log(`Throttle: ${((ir.get(VARS.THROTTLE) || 0) * 100).toFixed(1)}%`);
-  console.log(`Brake: ${((ir.get(VARS.BRAKE) || 0) * 100).toFixed(1)}%`);
-  console.log(`Fuel: ${ir.get(VARS.FUEL_LEVEL)?.toFixed(2) || 'N/A'} L`);
+  console.log(`Speed: ${ir.get(VARS.SPEED)[0]?.toFixed(2) || 'N/A'} m/s`);
+  console.log(`RPM: ${ir.get(VARS.RPM)[0].toFixed(0) || 'N/A'}`);
+  console.log(`Gear: ${ir.get(VARS.GEAR)[0] || 'N/A'}`);
+  console.log(
+    `Throttle: ${((ir.get(VARS.THROTTLE)[0] || 0) * 100).toFixed(1)}%`,
+  );
+  console.log(`Brake: ${((ir.get(VARS.BRAKE)[0] || 0) * 100).toFixed(1)}%`);
+  console.log(`Fuel: ${ir.get(VARS.FUEL_LEVEL)[0].toFixed(2) || 'N/A'} L`);
 
   // Read session data
   console.log('\n=== Session Data ===');

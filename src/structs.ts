@@ -127,7 +127,7 @@ export class Header extends IRSDKStruct {
     return this.getValue(28, 'i') as number;
   }
 
-  get numBuf(): number {
+  getNumBuf(): number {
     return this.getValue(32, 'i') as number;
   }
 
@@ -135,26 +135,22 @@ export class Header extends IRSDKStruct {
     return this.getValue(36, 'i') as number;
   }
 
-  get varBuf(): VarBuffer[] {
+  getVarBuffer(): VarBuffer {
     const buffers: VarBuffer[] = [];
-    for (let i = 0; i < this.numBuf; i++) {
-      buffers.push(new VarBuffer(this._sharedMem, 48 + i * 16, this.bufLen));
+    for (let i = 0; i < this.getNumBuf(); i++) {
+      buffers.push(new VarBuffer(this._sharedMem, 48 + i * 16));
     }
-    return buffers;
+
+    // Return 2nd most recent var buffer (to avoid partially updated buffers)
+    const sortedBuffers = buffers.sort(
+      (a, b) => b.getTickCount() - a.getTickCount(),
+    );
+    return sortedBuffers.length > 1 ? sortedBuffers[1] : sortedBuffers[0];
   }
 }
 
 export class VarBuffer extends IRSDKStruct {
-  private _bufLen: number;
-  private _isFrozen: boolean = false;
-  private _frozenMemory: number[] | null = null;
-
-  constructor(sharedMem: number[], offset: number, bufLen: number) {
-    super(sharedMem, offset);
-    this._bufLen = bufLen;
-  }
-
-  get tickCount(): number {
+  getTickCount(): number {
     return this.getValue(0, 'i') as number;
   }
 
@@ -163,30 +159,11 @@ export class VarBuffer extends IRSDKStruct {
   }
 
   get bufOffset(): number {
-    return this._isFrozen ? 0 : this._bufOffset;
-  }
-
-  get isMemoryFrozen(): boolean {
-    return this._isFrozen;
-  }
-
-  freeze(): void {
-    this._frozenMemory = this._sharedMem.slice(
-      this._bufOffset,
-      this._bufOffset + this._bufLen,
-    );
-    this._isFrozen = true;
-  }
-
-  unfreeze(): void {
-    this._frozenMemory = null;
-    this._isFrozen = false;
+    return this._bufOffset;
   }
 
   getMemory(): number[] {
-    return this._isFrozen && this._frozenMemory
-      ? this._frozenMemory
-      : this._sharedMem;
+    return this._sharedMem;
   }
 }
 

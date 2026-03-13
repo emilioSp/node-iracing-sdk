@@ -73,7 +73,7 @@ export class IBT {
     const typeChar = VAR_TYPE_MAP[varHeader.type];
     const varOffset =
       varHeader.offset +
-      this.header.varBuf[0]._bufOffset +
+      this.header.getVarBuffer()._bufOffset +
       index * this.header.bufLen;
 
     return this.unpackValues(varOffset, typeChar, varHeader.count);
@@ -94,7 +94,7 @@ export class IBT {
     // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
     const results: any[] = [];
     const bufLen = this.header.bufLen;
-    const varOffset = varHeader.offset + this.header.varBuf[0]._bufOffset;
+    const varOffset = varHeader.offset + this.header.getVarBuffer()._bufOffset;
 
     for (let i = 0; i < this.diskHeader.sessionRecordCount; i++) {
       const value = this.unpackValues(
@@ -122,6 +122,14 @@ export class IBT {
         );
         this.varHeaders.push(varHeader);
         this.varHeadersDict.set(varHeader.name, varHeader);
+        if (varHeader.count !== 1) {
+          console.log(
+            'varHeader',
+            varHeader.name,
+            varHeader.type,
+            varHeader.count,
+          );
+        }
       }
     }
 

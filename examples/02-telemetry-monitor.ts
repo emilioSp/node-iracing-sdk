@@ -19,18 +19,17 @@ async function main() {
       process.exit(0);
     }
 
-    // Freeze buffer for consistent reads
-    ir.freezeVarBufferLatest();
+    ir.refreshSharedMemory();
 
-    const speed = ir.get(VARS.SPEED) || 0;
-    const rpm = ir.get(VARS.RPM) || 0;
-    const throttle = ir.get(VARS.THROTTLE) || 0;
-    const brake = ir.get(VARS.BRAKE) || 0;
-    const gear = ir.get(VARS.GEAR) || 0;
-    const fuel = ir.get(VARS.FUEL_LEVEL) || 0;
-    const fuelPerLap = ir.get(VARS.FUEL_USE_PER_HOUR) || 0;
-    const lapCount = ir.get(VARS.LAP) || 0;
-    const lapDistance = ir.get(VARS.LAP_DIST) || 0;
+    const speed = ir.get(VARS.SPEED)[0] || 0;
+    const rpm = ir.get(VARS.RPM)[0] || 0;
+    const throttle = ir.get(VARS.THROTTLE)[0] || 0;
+    const brake = ir.get(VARS.BRAKE)[0] || 0;
+    const gear = ir.get(VARS.GEAR)[0] || 0;
+    const fuel = ir.get(VARS.FUEL_LEVEL)[0] || 0;
+    const fuelPerLap = ir.get(VARS.FUEL_USE_PER_HOUR)[0] || 0;
+    const lapCount = ir.get(VARS.LAP)[0] || 0;
+    const lapDistance = ir.get(VARS.LAP_DIST)[0] || 0;
 
     // Clear screen and display
     console.clear();
@@ -63,8 +62,6 @@ async function main() {
       `║ Lap:          ${String(`${lapCount} (${(lapDistance * 100).toFixed(1)}%)`).padEnd(32)} ║`,
     );
     console.log('╚═══════════════════════════════════════════════════╝');
-
-    ir.unfreezeVarBufferLatest();
   }, 100);
 
   process.on('SIGINT', () => {

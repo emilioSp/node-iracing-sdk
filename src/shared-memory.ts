@@ -1,9 +1,24 @@
-import { getVars, parseHeader, parseVarBuffer, type VarBuffer, type Vars } from './structs.ts';
+import { getTypeSize } from './utils.ts';
 import { VAR_TYPE_MAP } from './vars.ts';
 
-export class SharedMemory {
-  private data: number[];
+type VarBuffer = {
+  tickCount: number;
+  bufOffset: number;
+};
 
+type Vars = {
+  type: number;
+  typeChar: string;
+  typeSize: number;
+  offset: number;
+  count: number;
+  countAsTime: boolean;
+  name: string;
+  desc: string;
+  unit: string;
+};
+
+export class SharedMemory {
   readonly version: number;
   readonly status: number;
   readonly tickRate: number;
@@ -15,73 +30,73 @@ export class SharedMemory {
   readonly bufLen: number;
   readonly numBuf: number;
 
-  private varHeadersList: Vars[] | null = null;
-  private varHeadersMap: Map<string, Vars> | null = null;
+  private data: number[];
+  private varHeadersMap: Map<string, Vars>;
 
   constructor(data: number[]) {
     this.data = data;
-    const header = parseHeader(data);
-    this.version = header.version;
-    this.status = header.status;
-    this.tickRate = header.tickRate;
-    this.sessionInfoUpdate = header.sessionInfoUpdate;
-    this.sessionInfoLen = header.sessionInfoLen;
-    this.sessionInfoOffset = header.sessionInfoOffset;
-    this.numVars = header.numVars;
-    this.varHeaderOffset = header.varHeaderOffset;
-    this.bufLen = header.bufLen;
-    this.numBuf = header.numBuf;
+    const view = new DataView(new Uint8Array(data.slice(0, 48)).buffer);
+    this.version = view.getInt32(0, true);
+    this.status = view.getInt32(4, true);
+    this.tickRate = view.getInt32(8, true);
+    this.sessionInfoUpdate = view.getInt32(12, true);
+    this.sessionInfoLen = view.getInt32(16, true);
+    this.sessionInfoOffset = view.getInt32(20, true);
+    this.numVars = view.getInt32(24, true);
+    this.varHeaderOffset = view.getInt32(28, true);
+    this.numBuf = view.getInt32(32, true);
+    this.bufLen = view.getInt32(36, true);
+
+    this.varHeadersMap = new Map();
+
+    for (let i = 0; i < this.numVars; i++) {
+      const varHeader = this.readVarHeader(this.varHeaderOffset + i * 144);
+      this.varHeadersMap.set(varHeader.name, varHeader);
+    }
   }
 
   getVarHeaders(): Map<string, Vars> {
-    if (!this.varHeadersMap) {
-      this.varHeadersList = [];
-      this.varHeadersMap = new Map();
-
-      for (let i = 0; i < this.numVars; i++) {
-        const varHeader = getVars(this.data, this.varHeaderOffset + i * 144);
-        this.varHeadersList.push(varHeader);
-        this.varHeadersMap.set(varHeader.name, varHeader);
-      }
-    }
     return this.varHeadersMap;
   }
 
   getVarHeadersList(): string[] {
-    const headers = this.getVarHeaders();
-    // biome-ignore lint/style/noNonNullAssertion: initialized by getVarHeaders()
-    return this.varHeadersList!.map((h) => h.name);
+    return Array.from(this.varHeadersMap.keys());
   }
 
   getVarBuffer(): VarBuffer {
     const buffers: VarBuffer[] = [];
     for (let i = 0; i < this.numBuf; i++) {
-      buffers.push(parseVarBuffer(this.data, 48 + i * 16));
+      const bufOffset = 48 + i * 16;
+      const view = new DataView(
+        new Uint8Array(this.data.slice(bufOffset, bufOffset + 8)).buffer,
+      );
+      buffers.push({
+        tickCount: view.getInt32(0, true),
+        bufOffset: view.getInt32(4, true),
+      });
     }
     const sorted = buffers.sort((a, b) => b.tickCount - a.tickCount);
     return sorted.length > 1 ? sorted[1] : sorted[0];
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
-  readVar(key: string): any {
+  readVar(key: string): Array<any> {
     const varHeader = this.getVarHeaders().get(key);
     if (!varHeader) {
       throw new Error(`Key ${key} not found in var headers`);
     }
 
     const varBuffer = this.getVarBuffer();
-    const offset = varBuffer.bufOffset + varHeader.offset;
-    const typeChar = VAR_TYPE_MAP[varHeader.type];
-
-    if (varHeader.count === 1) {
-      return this.unpackValue(offset, typeChar);
-    }
 
     // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
     const result: any[] = [];
-    const typeSize = getTypeSize(typeChar);
     for (let i = 0; i < varHeader.count; i++) {
-      result.push(this.unpackValue(offset + i * typeSize, typeChar));
+      result.push(
+        this.unpackValue(
+          varBuffer.bufOffset + varHeader.offset + i * varHeader.typeSize,
+          varHeader.typeChar,
+        ),
+      );
     }
     return result;
   }
@@ -91,27 +106,56 @@ export class SharedMemory {
    * Returns the unpacked value(s) for the given var at the given record.
    */
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
-  readVarAtIndex(key: string, index: number): any {
+  readVarAtIndex(key: string, index: number): Array<any> {
     const varHeader = this.getVarHeaders().get(key);
     if (!varHeader) {
-      return null;
+      throw new Error(`Key ${key} not found in var headers`);
     }
 
-    const typeChar = VAR_TYPE_MAP[varHeader.type];
     const varOffset =
       varHeader.offset + this.getVarBuffer().bufOffset + index * this.bufLen;
 
-    if (varHeader.count === 1) {
-      return this.unpackValue(varOffset, typeChar);
-    }
-
     // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
     const results: any[] = [];
-    const typeSize = getTypeSize(typeChar);
     for (let i = 0; i < varHeader.count; i++) {
-      results.push(this.unpackValue(varOffset + i * typeSize, typeChar));
+      results.push(
+        this.unpackValue(
+          varOffset + i * varHeader.typeSize,
+          varHeader.typeChar,
+        ),
+      );
     }
     return results;
+  }
+
+  private readVarHeader(offset: number): Vars {
+    const view = new DataView(
+      new Uint8Array(this.data.slice(offset, offset + 144)).buffer,
+    );
+    const type = view.getInt32(0, true);
+
+    const typeSize = getTypeSize(VAR_TYPE_MAP[type]);
+    return {
+      type,
+      typeChar: VAR_TYPE_MAP[type],
+      typeSize,
+      offset: view.getInt32(4, true),
+      count: view.getInt32(8, true),
+      countAsTime: view.getUint8(12) !== 0,
+      name: this.readString(offset + 16, 32),
+      desc: this.readString(offset + 48, 64),
+      unit: this.readString(offset + 112, 32),
+    };
+  }
+
+  private readString(offset: number, maxLength: number): string {
+    const chars: number[] = [];
+    for (let i = 0; i < maxLength; i++) {
+      const byte = this.data[offset + i];
+      if (byte === 0) break;
+      chars.push(byte);
+    }
+    return String.fromCharCode(...chars);
   }
 
   unpackValue(offset: number, typeChar: string): number | boolean {
@@ -141,24 +185,6 @@ export class SharedMemory {
   }
 
   updateData(fresh: number[]): void {
-    for (let i = 0; i < fresh.length; i++) {
-      this.data[i] = fresh[i];
-    }
-  }
-}
-
-export function getTypeSize(typeChar: string): number {
-  switch (typeChar) {
-    case 'i':
-    case 'I':
-    case 'f':
-      return 4;
-    case 'd':
-      return 8;
-    case '?':
-    case 'c':
-      return 1;
-    default:
-      return 0;
+    this.data = fresh;
   }
 }

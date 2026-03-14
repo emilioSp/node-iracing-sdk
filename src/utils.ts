@@ -104,25 +104,6 @@ export const extractYamlSection = (
   return sharedMem.slice(matchStart, matchEnd);
 };
 
-export const padCarNumber = (num: string | number): number => {
-  const numStr = String(num);
-  const numLen = numStr.length;
-  let zero = numLen - numStr.replace(/^0+/, '').length;
-
-  if (zero > 0 && numLen === zero) {
-    zero -= 1;
-  }
-
-  const parsedNum = parseInt(numStr, 10);
-
-  if (zero) {
-    const numPlace = parsedNum > 99 ? 3 : parsedNum > 9 ? 2 : 1;
-    return parsedNum + 1000 * (numPlace + zero);
-  }
-
-  return parsedNum;
-};
-
 export const checkSimStatus = async (): Promise<boolean> => {
   try {
     const response = await fetch(
@@ -138,5 +119,21 @@ export const checkSimStatus = async (): Promise<boolean> => {
     return data.includes('running:1');
   } catch {
     return false;
+  }
+};
+
+export const getTypeSize = (typeChar: string): number => {
+  switch (typeChar) {
+    case 'i':
+    case 'I':
+    case 'f':
+      return 4;
+    case 'd':
+      return 8;
+    case '?':
+    case 'c':
+      return 1;
+    default:
+      return 0;
   }
 };

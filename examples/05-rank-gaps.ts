@@ -54,29 +54,35 @@ async function main() {
   const ir = await IRSDK.connect();
   console.log('Connected! Press Ctrl+C to exit\n');
 
-  // ── iRating lookup: CarIdx → IRating ────────────────────────────────────
+  // ── Driver info lookup: CarIdx → { iRating, name, car } ─────────────────
   // Built from DriverInfo YAML (session-level, not per-tick telemetry).
   // Refreshed whenever the session info update counter changes.
-  let iRatingMap: Map<number, number> = new Map();
+  type DriverInfo = {
+    iRating: number;
+    name: string;
+    car: string;
+    license: string;
+  };
+  let driverMap: Map<number, DriverInfo> = new Map();
   let lastSessionInfoUpdate = -1;
 
-  const refreshIRatingMap = () => {
-    const update: number = ir.get(VARS.SESSION_TICK)[0] ?? 0; // use as dirty-check proxy
+  const refreshDriverMap = () => {
+    const update: number = ir.get(VARS.SESSION_TICK)[0] ?? 0;
     const driverInfo = ir.getSessionInfo(SESSION_DATA_KEYS.DRIVER_INFO);
-    if (update === lastSessionInfoUpdate && iRatingMap.size > 0) return;
+    if (update === lastSessionInfoUpdate && driverMap.size > 0) return;
     lastSessionInfoUpdate = update;
 
-    // DEBUG: uncomment the next line to verify the exact YAML field names
-    console.log(
-      'DriverInfo sample:',
-      JSON.stringify(driverInfo.Drivers?.[0], null, 2),
-    );
-
-    iRatingMap = new Map<number, number>();
+    driverMap = new Map<number, DriverInfo>();
     for (const driver of driverInfo.Drivers) {
       const idx = driver.CarIdx;
-      const rating = Number(driver.IRating ?? 0);
-      if (idx !== undefined) iRatingMap.set(idx, rating);
+      if (idx !== undefined) {
+        driverMap.set(idx, {
+          iRating: Number(driver.IRating ?? 0),
+          name: String(driver.UserName ?? ''),
+          car: String(driver.CarScreenName ?? ''),
+          license: String(driver.LicString ?? ''),
+        });
+      }
     }
   };
 
@@ -87,13 +93,15 @@ async function main() {
       process.exit(0);
     }
 
-    // Refresh iRating map from session YAML (cheap if unchanged)
-    refreshIRatingMap();
+    // Refresh driver map from session YAML (cheap if unchanged)
+    refreshDriverMap();
+    ir.refreshSharedMemory();
 
     // ── Raw data from shared memory ──────────────────────────────────────────
     const playerIdx: number = ir.get(VARS.PLAYER_CAR_IDX)[0] ?? -1;
     const positions: number[] = ir.get(VARS.CAR_IDX_POSITION) ?? [];
     const lastLaps: number[] = ir.get(VARS.CAR_IDX_LAST_LAP_TIME) ?? [];
+    const bestLaps: number[] = ir.get(VARS.CAR_IDX_BEST_LAP_TIME) ?? [];
     const estTimes: number[] = ir.get(VARS.CAR_IDX_EST_TIME) ?? [];
     const sessionTime: number = ir.get(VARS.SESSION_TIME)[0] ?? 0;
 
@@ -110,10 +118,14 @@ async function main() {
     const aheadIdx = positions.findIndex((pos) => pos === playerPos - 1) ?? -1;
     const behindIdx = positions.findIndex((pos) => pos === playerPos + 1) ?? -1;
 
-    // ── iRatings ─────────────────────────────────────────────────────────────
-    const playerIR = iRatingMap.get(playerIdx) ?? NaN;
-    const aheadIR = aheadIdx >= 0 ? (iRatingMap.get(aheadIdx) ?? NaN) : NaN;
-    const behindIR = behindIdx >= 0 ? (iRatingMap.get(behindIdx) ?? NaN) : NaN;
+    // ── Driver info ───────────────────────────────────────────────────────────
+    const playerInfo = driverMap.get(playerIdx);
+    const aheadInfo = aheadIdx >= 0 ? driverMap.get(aheadIdx) : undefined;
+    const behindInfo = behindIdx >= 0 ? driverMap.get(behindIdx) : undefined;
+
+    const playerIR = playerInfo?.iRating ?? NaN;
+    const aheadIR = aheadInfo?.iRating ?? NaN;
+    const behindIR = behindInfo?.iRating ?? NaN;
 
     // ── Lap times ────────────────────────────────────────────────────────────
     const playerLap = lastLaps[playerIdx] > 0 ? lastLaps[playerIdx] : NaN;
@@ -121,6 +133,12 @@ async function main() {
       aheadIdx >= 0 && lastLaps[aheadIdx] > 0 ? lastLaps[aheadIdx] : NaN;
     const behindLap =
       behindIdx >= 0 && lastLaps[behindIdx] > 0 ? lastLaps[behindIdx] : NaN;
+
+    const playerBest = bestLaps[playerIdx] > 0 ? bestLaps[playerIdx] : NaN;
+    const aheadBest =
+      aheadIdx >= 0 && bestLaps[aheadIdx] > 0 ? bestLaps[aheadIdx] : NaN;
+    const behindBest =
+      behindIdx >= 0 && bestLaps[behindIdx] > 0 ? bestLaps[behindIdx] : NaN;
 
     // ── Live gaps via EstTime ─────────────────────────────────────────────────
     // EstTime = time each car needs to reach the player's current track pos.
@@ -168,7 +186,11 @@ async function main() {
       console.log(
         `║  Car ahead   (P${String(playerPos - 1).padEnd(2)})                                         ║`,
       );
+      console.log(`║    Driver   : ${(aheadInfo?.name ?? 'N/A').padEnd(48)}║`);
+      console.log(`║    Car      : ${(aheadInfo?.car ?? 'N/A').padEnd(48)}║`);
       console.log(`║    iRating  : ${irStr.padEnd(48)}║`);
+      console.log(`║    SR       : ${aheadInfo?.license}║`);
+      console.log(`║    Best lap : ${formatTime(aheadBest).padEnd(48)}║`);
       console.log(`║    Last lap : ${formatTime(aheadLap).padEnd(48)}║`);
       console.log(`║    Gap      : ${formatGap(gapAhead).padEnd(48)}║`);
     } else {
@@ -186,7 +208,11 @@ async function main() {
     console.log(
       `║  Player      (P${String(playerPos).padEnd(2)})                                         ║`,
     );
+    console.log(`║    Driver   : ${(playerInfo?.name ?? 'N/A').padEnd(48)}║`);
+    console.log(`║    Car      : ${(playerInfo?.car ?? 'N/A').padEnd(48)}║`);
     console.log(`║    iRating  : ${playerIRStr.padEnd(48)}║`);
+    console.log(`║    SR       : ${playerInfo?.license}║`);
+    console.log(`║    Best lap : ${formatTime(playerBest).padEnd(48)}║`);
     console.log(`║    Last lap : ${formatTime(playerLap).padEnd(48)}║`);
     if (aheadIdx >= 0)
       console.log(`║    vs ahead : ${formatDeltaLap(deltaAhead).padEnd(48)}║`);
@@ -203,7 +229,11 @@ async function main() {
       console.log(
         `║  Car behind  (P${String(playerPos + 1).padEnd(2)})                                         ║`,
       );
+      console.log(`║    Driver   : ${(behindInfo?.name ?? 'N/A').padEnd(48)}║`);
+      console.log(`║    Car      : ${(behindInfo?.car ?? 'N/A').padEnd(48)}║`);
       console.log(`║    iRating  : ${irStr.padEnd(48)}║`);
+      console.log(`║    SR       : ${behindInfo?.license}║`);
+      console.log(`║    Best lap : ${formatTime(behindBest).padEnd(48)}║`);
       console.log(`║    Last lap : ${formatTime(behindLap).padEnd(48)}║`);
       console.log(`║    Gap      : ${formatGap(gapBehind).padEnd(48)}║`);
     } else {

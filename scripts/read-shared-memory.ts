@@ -1,9 +1,9 @@
 import path from 'node:path';
 import { IRSDK } from '../src/irsdk.ts';
-import { VARS } from '../src/vars.ts';
+import { SESSION_DATA_KEYS, VARS } from '../src/vars.ts';
 
 const ir = IRSDK.fromDump(
-  path.join(import.meta.dirname, '..', 'fixture', 'shared-memory.bin'),
+  path.join(import.meta.dirname, '..', 'fixture', 'shared-memory_ai_race.bin'),
 );
 
 console.log('speed', ir.get(VARS.SPEED)[0]);
@@ -28,4 +28,5 @@ console.log('lastLaps', lastLaps);
 console.log('estTimes', estTimes);
 console.log('sessionTime', sessionTime);
 
-console.log(ir.getVarHeadersNamesList());
+const driverInfo = ir.getSessionInfo(SESSION_DATA_KEYS.DRIVER_INFO);
+console.log('driverInfo', driverInfo);

@@ -27,61 +27,41 @@ npm install irsdk
 ### Basic Example
 
 ```typescript
-import { IRSDK } from 'irsdk';
+import { IRSDK, VARS } from 'irsdk';
 
-const ir = new IRSDK();
+// Connect to iRacing (throws if iRacing is not running)
+const ir = await IRSDK.connect();
 
-// Connect to iRacing
-const connected = await ir.startup();
+// Refresh shared memory before reading telemetry
+ir.refreshSharedMemory();
 
-if (connected) {
-  // Get telemetry data
-  const speed = ir.get('Speed');
-  console.log(`Current speed: ${speed}`);
+// ir.get() always returns an array; use [0] for scalar variables
+const speed = ir.get(VARS.SPEED)[0];
+console.log(`Current speed: ${speed}`);
 
-  // Check connection status
-  if (ir.isConnected) {
-    const fuelLevel = ir.get('FuelLevel');
-    console.log(`Fuel level: ${fuelLevel}`);
-  }
-
-  // Disconnect
-  ir.shutdown();
+// Check connection status
+if (ir.isConnected()) {
+  const fuelLevel = ir.get(VARS.FUEL_LEVEL)[0];
+  console.log(`Fuel level: ${fuelLevel}`);
 }
+
+// Disconnect
+ir.shutdown();
 ```
 
 ### Reading IBT Files
 
 ```typescript
-import { IBT } from 'irsdk';
+import { IBT, VARS } from 'irsdk';
 
 const ibt = new IBT();
 ibt.open('path/to/telemetry.ibt');
 
 // Get data at specific index
-const speed = ibt.get(0, 'Speed');
+const speed = ibt.get(0, VARS.SPEED);
 
 // Get all data for a variable
-const allSpeeds = ibt.getAll('Speed');
+const allSpeeds = ibt.getAll(VARS.SPEED);
 
 ibt.close();
-```
-
-### Using Constants
-
-```typescript
-import { Flags, SessionState, CameraState } from 'irsdk';
-
-// Check flags
-if (flag & Flags.green) {
-  console.log('Green flag!');
-}
-
-// Check session state
-if (sessionState === SessionState.racing) {
-  console.log('Currently racing');
-}
-
-// Set camera state
-ir.camSetState(CameraState.cam_tool_active | CameraState.ui_hidden);
 ```

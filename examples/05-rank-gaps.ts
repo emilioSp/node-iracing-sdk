@@ -15,7 +15,6 @@
  * CarIdxEstTime[n]      – estimated time for car n to reach the player's
  *                         current track location (s); diff = live gap
  */
-
 import { IRSDK } from '../src/irsdk.ts';
 import { SESSION_DATA_KEYS, VARS } from '../src/vars.ts';
 
@@ -51,7 +50,9 @@ const formatDeltaLap = (deltaLap: number): string => {
 
 async function main() {
   console.log('Connecting to iRacing...');
-  const ir = await IRSDK.connect();
+  // const ir = await IRSDK.connect();
+  // for debugging...
+  const ir = await IRSDK.fromDump('../fixture/shared-memory_ai_race.bin');
   console.log('Connected! Press Ctrl+C to exit\n');
 
   // ── Driver info lookup: CarIdx → { iRating, name, car } ─────────────────
@@ -103,6 +104,7 @@ async function main() {
     const lastLaps: number[] = ir.get(VARS.CAR_IDX_LAST_LAP_TIME) ?? [];
     const bestLaps: number[] = ir.get(VARS.CAR_IDX_BEST_LAP_TIME) ?? [];
     const estTimes: number[] = ir.get(VARS.CAR_IDX_EST_TIME) ?? [];
+    const f2Times: number[] = ir.get(VARS.CAR_IDX_F2_TIME) ?? [];
     const sessionTime: number = ir.get(VARS.SESSION_TIME)[0] ?? 0;
 
     if (playerIdx < 0 || positions.length === 0) return;
@@ -149,6 +151,19 @@ async function main() {
     const gapBehind =
       behindIdx >= 0 ? (estTimes[behindIdx] ?? 0) - playerEst : NaN;
 
+    // ── Live gaps via F2Time ──────────────────────────────────────────────────
+    // F2Time = time behind the leader (fixed reference, same as iRacing black box).
+    // Handles lapping correctly; -1 means car is not on track.
+    const playerF2 = f2Times[playerIdx] ?? -1;
+    const gapAheadF2 =
+      aheadIdx >= 0 && f2Times[aheadIdx] >= 0 && playerF2 >= 0
+        ? playerF2 - f2Times[aheadIdx]
+        : NaN;
+    const gapBehindF2 =
+      behindIdx >= 0 && f2Times[behindIdx] >= 0 && playerF2 >= 0
+        ? f2Times[behindIdx] - playerF2
+        : NaN;
+
     // ── Lap delta: positive = player was faster that lap ─────────────────────
     const deltaAhead =
       Number.isFinite(playerLap) && Number.isFinite(aheadLap)
@@ -189,10 +204,11 @@ async function main() {
       console.log(`║    Driver   : ${(aheadInfo?.name ?? 'N/A').padEnd(48)}║`);
       console.log(`║    Car      : ${(aheadInfo?.car ?? 'N/A').padEnd(48)}║`);
       console.log(`║    iRating  : ${irStr.padEnd(48)}║`);
-      console.log(`║    SR       : ${aheadInfo?.license}║`);
+      console.log(`║    SR       : ${aheadInfo?.license.padEnd(48)}║`);
       console.log(`║    Best lap : ${formatTime(aheadBest).padEnd(48)}║`);
       console.log(`║    Last lap : ${formatTime(aheadLap).padEnd(48)}║`);
-      console.log(`║    Gap      : ${formatGap(gapAhead).padEnd(48)}║`);
+      console.log(`║    Gap (EstT): ${formatGap(gapAhead).padEnd(47)}║`);
+      console.log(`║    Gap (F2T) : ${formatGap(gapAheadF2).padEnd(47)}║`);
     } else {
       console.log(
         '║  Car ahead   : none (you are leading)                        ║',
@@ -211,7 +227,7 @@ async function main() {
     console.log(`║    Driver   : ${(playerInfo?.name ?? 'N/A').padEnd(48)}║`);
     console.log(`║    Car      : ${(playerInfo?.car ?? 'N/A').padEnd(48)}║`);
     console.log(`║    iRating  : ${playerIRStr.padEnd(48)}║`);
-    console.log(`║    SR       : ${playerInfo?.license}║`);
+    console.log(`║    SR       : ${playerInfo?.license.padEnd(48)}║`);
     console.log(`║    Best lap : ${formatTime(playerBest).padEnd(48)}║`);
     console.log(`║    Last lap : ${formatTime(playerLap).padEnd(48)}║`);
     if (aheadIdx >= 0)
@@ -232,10 +248,11 @@ async function main() {
       console.log(`║    Driver   : ${(behindInfo?.name ?? 'N/A').padEnd(48)}║`);
       console.log(`║    Car      : ${(behindInfo?.car ?? 'N/A').padEnd(48)}║`);
       console.log(`║    iRating  : ${irStr.padEnd(48)}║`);
-      console.log(`║    SR       : ${behindInfo?.license}║`);
+      console.log(`║    SR       : ${behindInfo?.license.padEnd(48)}║`);
       console.log(`║    Best lap : ${formatTime(behindBest).padEnd(48)}║`);
       console.log(`║    Last lap : ${formatTime(behindLap).padEnd(48)}║`);
-      console.log(`║    Gap      : ${formatGap(gapBehind).padEnd(48)}║`);
+      console.log(`║    Gap (EstT): ${formatGap(gapBehind).padEnd(47)}║`);
+      console.log(`║    Gap (F2T) : ${formatGap(gapBehindF2).padEnd(47)}║`);
     } else {
       console.log(
         '║  Car behind  : none (you are last)                           ║',

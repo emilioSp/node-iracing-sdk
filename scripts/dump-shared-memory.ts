@@ -1,10 +1,8 @@
 import path from 'node:path';
 import { IRSDK } from '../src/irsdk.ts';
 
-const ir = new IRSDK();
-
 console.log('Connecting to iRacing...');
-await ir.connect();
+const ir = await IRSDK.connect();
 console.log('Connected! Dumping shared memory...\n');
 
 const outputPath = path.join(import.meta.dirname, 'shared-memory.bin');

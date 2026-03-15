@@ -28,9 +28,9 @@ async function main() {
       process.exit(0);
     }
 
-    const lapCount = ir.get(VARS.LAP_COMPLETED) || 0;
-    const lastLapTime = ir.get(VARS.LAP_LAST_LAP_TIME) || 0;
-    const _sessionBestLapTime = ir.get(VARS.LAP_BEST_LAP_TIME) || 0;
+    const lapCount = ir.get(VARS.LAP_COMPLETED)[0] || 0;
+    const lastLapTime = ir.get(VARS.LAP_LAST_LAP_TIME)[0] || 0;
+    const _sessionBestLapTime = ir.get(VARS.LAP_BEST_LAP_TIME)[0] || 0;
 
     // Check if we completed a new lap
     if (lapCount > lastLapCount && lastLapTime > 0) {

@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { SharedMemory } from './shared-memory.ts';
+import { SharedMemory } from './shared-memory.js';
 
 const readInt32LE = (data: number[], offset: number): number => {
   return (

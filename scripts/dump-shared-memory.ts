@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { IRSDK } from '../src/irsdk.ts';
+import { IRSDK } from '../src/irsdk.js';
 
 console.log('Connecting to iRacing...');
 const ir = await IRSDK.connect();

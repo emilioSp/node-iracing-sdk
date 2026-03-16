@@ -1,11 +1,10 @@
 {
   "compilerOptions": {
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
     "target": "ESNext",
     "module": "NodeNext",
     "moduleResolution": "nodenext",
     "lib": ["ESNext"],
+    "outDir": "dist",
     "strict": true,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
@@ -14,6 +13,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src/**/*", "examples/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "vitest.config.ts", "examples", "scripts"]
 }

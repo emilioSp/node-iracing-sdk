@@ -1,5 +1,5 @@
-import { getTypeSize } from './utils.ts';
-import { VAR_TYPE_MAP } from './vars.ts';
+import { getTypeSize } from './utils.js';
+import { VAR_TYPE_MAP } from './vars.js';
 
 type VarBuffer = {
   tickCount: number;

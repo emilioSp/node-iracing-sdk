@@ -1,4 +1,4 @@
-import type { DriverInfo, SessionInfo, WeekendInfo } from './types.ts';
+import type { DriverInfo, SessionInfo, WeekendInfo } from './types.js';
 
 export const VARS = {
   /** Density of air at start/finish line, kg/m^3 */

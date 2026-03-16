@@ -4,8 +4,8 @@
  * This is the simplest example - connect to iRacing and read some telemetry data
  */
 
-import { IRSDK } from '../src/irsdk.ts';
-import { SESSION_DATA_KEYS, VARS } from '../src/vars.ts';
+import { IRSDK } from '../src/irsdk.js';
+import { SESSION_DATA_KEYS, VARS } from '../src/vars.js';
 
 async function main() {
   console.log('Connecting to iRacing...');

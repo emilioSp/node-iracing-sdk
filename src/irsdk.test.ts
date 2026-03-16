@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { IRSDK } from './irsdk.ts';
-import { SESSION_DATA_KEYS, VARS } from './vars.ts';
+import { IRSDK } from './irsdk.js';
+import { SESSION_DATA_KEYS, VARS } from './vars.js';
 
 describe('iracing sdk test', () => {
   it('should get vars from shared memory', () => {
@@ -103,8 +103,13 @@ describe('AI race fixture — rank gaps scenario', () => {
   it('should return driver info from session YAML', () => {
     const ir = IRSDK.fromDump(FIXTURE);
     const driverInfo = ir.getSessionInfo(SESSION_DATA_KEYS.DRIVER_INFO);
-    const drivers: { CarIdx: number; UserName: string; CarScreenName: string; IRating: number; LicString: string }[] =
-      driverInfo.Drivers;
+    const drivers: {
+      CarIdx: number;
+      UserName: string;
+      CarScreenName: string;
+      IRating: number;
+      LicString: string;
+    }[] = driverInfo.Drivers;
 
     const player = drivers.find((d) => d.CarIdx === 0);
     expect(player?.UserName).toBe('Emilio Spatola');

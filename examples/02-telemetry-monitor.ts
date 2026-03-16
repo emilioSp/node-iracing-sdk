@@ -4,8 +4,8 @@
  * Display live telemetry data in the terminal, updated every 100ms
  */
 
-import { IRSDK } from '../src/irsdk.ts';
-import { VARS } from '../src/vars.ts';
+import { IRSDK } from '../src/irsdk.js';
+import { VARS } from '../src/vars.js';
 
 async function main() {
   console.log('Connecting to iRacing...');

@@ -15,8 +15,8 @@
  * CarIdxEstTime[n]      – estimated time for car n to reach the player's
  *                         current track location (s); diff = live gap
  */
-import { IRSDK } from '../src/irsdk.ts';
-import { SESSION_DATA_KEYS, VARS } from '../src/vars.ts';
+import { IRSDK } from '../src/irsdk.js';
+import { SESSION_DATA_KEYS, VARS } from '../src/vars.js';
 
 const formatTime = (s: number): string => {
   if (s <= 0) return '  --:--.---';

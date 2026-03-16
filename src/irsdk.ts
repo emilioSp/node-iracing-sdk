@@ -1,19 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import koffi from 'koffi';
-import { SharedMemory } from './shared-memory.ts';
+import { SharedMemory } from './shared-memory.js';
 import {
   checkSimStatus,
   extractYamlSection,
   parseIRSDKYaml,
   translateYamlData,
-} from './utils.ts';
+} from './utils.js';
 import {
   type SessionDataKey,
   type SessionDataValue,
   VARS,
   type VarKey,
-} from './vars.ts';
+} from './vars.js';
 
 type KoffiFunction = (...args: unknown[]) => unknown;
 type KoffiBoolFunction = (...args: unknown[]) => boolean;

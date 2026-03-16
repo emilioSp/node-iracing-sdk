@@ -47,8 +47,7 @@ export class IRSDK {
   private isInitialized: boolean = false;
   private lastSessionInfoUpdate: number = 0;
 
-  // @ts-expect-error We initialize this in the static methods, but it confuses TS that it's not set in the constructor
-  private sharedMemory: SharedMemory;
+  private sharedMemory!: SharedMemory;
 
   private sessionInfoDict: Map<string, SessionInfoCache> = new Map();
 
@@ -76,7 +75,10 @@ export class IRSDK {
     const buffer = fs.readFileSync(filePath);
     const data = Array.from(new Uint8Array(buffer));
     instance.sharedMemory = new SharedMemory(data);
-    instance.isInitialized = instance.sharedMemory.version >= 1;
+    instance.isInitialized =
+      instance.sharedMemory.version >= 1 &&
+      instance.sharedMemory.bufLen > 0 &&
+      instance.sharedMemory.numBuf > 0;
 
     if (instance.isInitialized) {
       instance.sharedMemory.getVarHeaders();
@@ -123,7 +125,10 @@ export class IRSDK {
 
     const sharedMem = instance.openSharedMemory();
     instance.sharedMemory = new SharedMemory(sharedMem);
-    instance.isInitialized = instance.sharedMemory.version >= 1;
+    instance.isInitialized =
+      instance.sharedMemory.version >= 1 &&
+      instance.sharedMemory.bufLen > 0 &&
+      instance.sharedMemory.numBuf > 0;
 
     if (!instance.isInitialized) {
       throw new Error('Failed to initialize IRSDK');
@@ -239,7 +244,7 @@ export class IRSDK {
   }
 
   /**
-   * Re-reads the latest data from the mapped shared memory into this.sharedMem.
+   * Re-reads the latest data from the shared memory
    * Call this before reading telemetry to get up-to-date values.
    */
   refreshSharedMemory(): void {

@@ -134,6 +134,7 @@ export const getTypeSize = (typeChar: string): number => {
     case 'c':
       return 1;
     default:
+      console.warn(`Unsupported type '${typeChar}'`);
       return 0;
   }
 };

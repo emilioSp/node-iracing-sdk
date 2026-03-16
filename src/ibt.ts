@@ -58,7 +58,7 @@ export class IBT {
       return null;
     }
 
-    return this.sharedMemory.readVarAtIndex(key, index);
+    return this.sharedMemory.readVarFromIBT(key, index);
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
@@ -76,7 +76,7 @@ export class IBT {
     // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
     const results: any[] = [];
     for (let i = 0; i < this.sessionRecordCount; i++) {
-      results.push(this.sharedMemory.readVarAtIndex(key, i));
+      results.push(this.sharedMemory.readVarFromIBT(key, i));
     }
 
     return results;

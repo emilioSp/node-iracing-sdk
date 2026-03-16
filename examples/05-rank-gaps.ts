@@ -50,9 +50,8 @@ const formatDeltaLap = (deltaLap: number): string => {
 
 async function main() {
   console.log('Connecting to iRacing...');
-  // const ir = await IRSDK.connect();
-  // for debugging...
-  const ir = await IRSDK.fromDump('../fixture/shared-memory_ai_race.bin');
+  const ir = await IRSDK.connect();
+  // const ir = await IRSDK.fromDump('../fixture/shared-memory_ai_race.bin');
   console.log('Connected! Press Ctrl+C to exit\n');
 
   // ── Driver info lookup: CarIdx → { iRating, name, car } ─────────────────
@@ -94,9 +93,9 @@ async function main() {
       process.exit(0);
     }
 
+    ir.refreshSharedMemory();
     // Refresh driver map from session YAML (cheap if unchanged)
     refreshDriverMap();
-    ir.refreshSharedMemory();
 
     // ── Raw data from shared memory ──────────────────────────────────────────
     const playerIdx: number = ir.get(VARS.PLAYER_CAR_IDX)[0] ?? -1;

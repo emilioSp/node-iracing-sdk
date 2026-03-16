@@ -15,5 +15,11 @@
     "declarationMap": true,
     "types": ["node"]
   },
-  "exclude": ["node_modules", "vitest.config.ts", "examples", "scripts", "src/**/*.test.ts"]
+  "exclude": [
+    "node_modules",
+    "vitest.config.ts",
+    "examples",
+    "scripts",
+    "src/**/*.test.ts"
+  ]
 }

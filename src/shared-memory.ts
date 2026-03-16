@@ -67,7 +67,7 @@ export class SharedMemory {
     return Array.from(this.varHeadersMap.keys());
   }
 
-  getVarBuffer({ isIBT }: { isIBT: boolean } = { isIBT: false }): VarBuffer {
+  getVarBuffer(): VarBuffer {
     const buffers: VarBuffer[] = [];
     for (let i = 0; i < this.numBuf; i++) {
       const bufOffset = 48 + i * 16;
@@ -81,8 +81,7 @@ export class SharedMemory {
     }
 
     const sorted = buffers.sort((a, b) => b.tickCount - a.tickCount);
-    // return the 2nd most updated buffer to avoid dirty data
-    return isIBT ? sorted[0] : sorted.length > 1 ? sorted[1] : sorted[0];
+    return sorted[0];
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
@@ -119,9 +118,7 @@ export class SharedMemory {
     }
 
     const varOffset =
-      varHeader.offset +
-      this.getVarBuffer({ isIBT: true }).bufOffset +
-      index * this.bufLen;
+      varHeader.offset + this.getVarBuffer().bufOffset + index * this.bufLen;
 
     // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
     const results: any[] = [];

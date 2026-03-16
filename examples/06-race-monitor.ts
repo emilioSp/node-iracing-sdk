@@ -63,11 +63,15 @@ async function main() {
       }
     }
     standings.sort((a, b) => {
-      const distA = (lapsCompleted[a.carIdx] ?? 0) + (lapDistPct[a.carIdx] ?? 0);
-      const distB = (lapsCompleted[b.carIdx] ?? 0) + (lapDistPct[b.carIdx] ?? 0);
+      const distA =
+        (lapsCompleted[a.carIdx] ?? 0) + (lapDistPct[a.carIdx] ?? 0);
+      const distB =
+        (lapsCompleted[b.carIdx] ?? 0) + (lapDistPct[b.carIdx] ?? 0);
       return distB - distA;
     });
-    standings.forEach((s, i) => { s.pos = i + 1; });
+    standings.forEach((s, i) => {
+      s.pos = i + 1;
+    });
 
     const W = 76;
     const line = '═'.repeat(W - 2);
@@ -98,6 +102,7 @@ async function main() {
       for (let si = 0; si < standings.length; si++) {
         const { pos, carIdx } = standings[si];
         const driver = driverMap.get(carIdx);
+        if (driver?.name.toLowerCase() === 'pace car') continue;
         const name = driver?.name ?? '—';
         const car = driver?.car ?? '—';
         const marker = carIdx === playerIdx ? '▶' : ' ';
@@ -120,7 +125,7 @@ async function main() {
         } else if (lapsBehind > 0) {
           gapStr = `+${lapsBehind}L`.padStart(9);
         } else {
-          const gap = (estTimes[carIdx] ?? 0) - leaderEstTime;
+          const gap = Math.abs((estTimes[carIdx] ?? 0) - leaderEstTime);
           gapStr = `+${gap.toFixed(3)}s`.padStart(9);
         }
 

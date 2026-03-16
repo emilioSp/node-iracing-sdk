@@ -51,18 +51,12 @@ export class IRSDK {
 
   private sessionInfoDict: Map<string, SessionInfoCache> = new Map();
 
-  private windowsApi: WindowsApi = {
-    RegisterWindowMessageW: () => 0,
-    SendNotifyMessageW: () => false,
-    CloseHandle: () => {},
-    OpenFileMappingW: () => {},
-    MapViewOfFile: () => {},
-    UnmapViewOfFile: () => {},
-  };
-  // biome-ignore lint/suspicious/noExplicitAny: Windows memory map handle
-  private memMapHandle: any = null;
-  // biome-ignore lint/suspicious/noExplicitAny: Windows mapped view pointer
-  private memMapView: any = null;
+  private windowsApi!: WindowsApi;
+
+  // biome-ignore lint/suspicious/noExplicitAny: dynamic type
+  private memMapHandle: any;
+  // biome-ignore lint/suspicious/noExplicitAny: dynamic type
+  private memMapView: any;
 
   static fromDump(filePath: string): IRSDK {
     const instance = Object.create(IRSDK.prototype) as IRSDK;
@@ -83,6 +77,15 @@ export class IRSDK {
     if (instance.isInitialized) {
       instance.sharedMemory.getVarHeaders();
     }
+
+    instance.windowsApi = {
+      RegisterWindowMessageW: () => 0,
+      SendNotifyMessageW: () => false,
+      CloseHandle: () => {},
+      OpenFileMappingW: () => {},
+      MapViewOfFile: () => {},
+      UnmapViewOfFile: () => {},
+    };
 
     return instance;
   }

@@ -30,7 +30,7 @@
     "build": "tsc",
     "lint": "biome check --write .",
     "test": "vitest run --coverage",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "rm -rf dist && npm run build"
   },
   "license": "MIT",
   "engines": {

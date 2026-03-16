@@ -30,6 +30,7 @@
     "build": "tsc",
     "lint": "biome check --write .",
     "test": "vitest run --coverage",
+    "debug": "tsx examples/06-race-monitor.ts",
     "prepublishOnly": "rm -rf dist && npm run build"
   },
   "license": "MIT",

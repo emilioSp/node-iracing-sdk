@@ -11,7 +11,9 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
     "types": ["node"]
   },
-  "exclude": ["node_modules", "vitest.config.ts", "examples", "scripts"]
+  "exclude": ["node_modules", "vitest.config.ts", "examples", "scripts", "src/**/*.test.ts"]
 }

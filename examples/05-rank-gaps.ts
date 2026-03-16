@@ -28,10 +28,18 @@ const formatGap = (s: number): string => {
   return `+${s.toFixed(3)}s`;
 };
 
+// delta = playerLap - otherLap: positive = player lost time, negative = gained
+const formatDelta = (delta: number): string => {
+  if (!Number.isFinite(delta)) return '---';
+  if (delta > 0) return `+${delta.toFixed(3)}s (lost)`;
+  if (delta < 0) return `${delta.toFixed(3)}s (gained)`;
+  return `0.000s`;
+};
+
 async function main() {
   console.log('Connecting to iRacing...');
-  const ir = await IRSDK.connect();
-  // const ir = await IRSDK.fromDump('../fixture/shared-memory_ai_race.bin');
+  //const ir = await IRSDK.connect();
+  const ir = await IRSDK.fromDump('../fixture/shared-memory_ai_race.bin');
   console.log('Connected! Press Ctrl+C to exit\n');
 
   type DriverEntry = {
@@ -136,11 +144,25 @@ async function main() {
     const gapBehind =
       behindIdx >= 0 ? Math.abs((estTimes[behindIdx] ?? 0) - playerEst) : NaN;
 
+    // Last lap deltas: positive = player was slower, negative = player was faster
+    const playerLast = lastLaps[playerIdx] > 0 ? lastLaps[playerIdx] : NaN;
+    const aheadLast =
+      aheadIdx >= 0 && lastLaps[aheadIdx] > 0 ? lastLaps[aheadIdx] : NaN;
+    const behindLast =
+      behindIdx >= 0 && lastLaps[behindIdx] > 0 ? lastLaps[behindIdx] : NaN;
+    const deltaAhead = playerLast - aheadLast;
+    const deltaBehind = playerLast - behindLast;
+
     const printDriver = (
       label: string,
       pos: number,
       carIdx: number,
-      gaps?: { ahead?: number; behind?: number },
+      gaps?: {
+        ahead?: number;
+        behind?: number;
+        deltaAhead?: number;
+        deltaBehind?: number;
+      },
     ) => {
       const driver = driverMap.get(carIdx);
       const name = (driver?.name ?? '—').substring(0, 30).padEnd(30);
@@ -167,6 +189,10 @@ async function main() {
       if (gaps?.ahead !== undefined) field('Gap ahead ', formatGap(gaps.ahead));
       if (gaps?.behind !== undefined)
         field('Gap behind', formatGap(gaps.behind));
+      if (gaps?.deltaAhead !== undefined)
+        field('vs ahead  ', formatDelta(gaps.deltaAhead));
+      if (gaps?.deltaBehind !== undefined)
+        field('vs behind ', formatDelta(gaps.deltaBehind));
     };
 
     console.log(`╔${line}╗`);
@@ -182,6 +208,8 @@ async function main() {
     printDriver('PLAYER', playerPos, playerIdx, {
       ahead: Number.isFinite(gapAhead) ? gapAhead : undefined,
       behind: Number.isFinite(gapBehind) ? gapBehind : undefined,
+      deltaAhead: Number.isFinite(deltaAhead) ? deltaAhead : undefined,
+      deltaBehind: Number.isFinite(deltaBehind) ? deltaBehind : undefined,
     });
 
     if (behindIdx >= 0) {

@@ -33,7 +33,7 @@ export const VARS = {
   CAR_IDX_CLASS: 'CarIdxClass',
   /** Cars class position in race by car index */
   CAR_IDX_CLASS_POSITION: 'CarIdxClassPosition',
-  /** Estimated time to reach current location on track, s */
+  /** Estimated time to reach current location on track, starting from the finish line  */
   CAR_IDX_EST_TIME: 'CarIdxEstTime',
   /** Race time behind leader or fastest lap time otherwise, s */
   CAR_IDX_F2_TIME: 'CarIdxF2Time',

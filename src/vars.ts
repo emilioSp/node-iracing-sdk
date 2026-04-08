@@ -111,6 +111,12 @@ export const VARS = {
   DC_TOGGLE_WINDSHIELD_WIPERS: 'dcToggleWindshieldWipers',
   /** In car momentarily turn on wipers */
   DC_TRIGGER_WINDSHIELD_WIPERS: 'dcTriggerWindshieldWipers',
+  /** In car abs adjustment */
+  DC_ABS: 'dcABS',
+  /** In car traction control adjustment */
+  DC_TRACTION_CONTROL: 'dcTractionControl',
+  /** In car brake bias adjustment */
+  DC_BRAKE_BIAS: 'dcBrakeBias',
   /** Default units for the user interface 0 = english 1 = metric */
   DISPLAY_UNITS: 'DisplayUnits',
   /** Pitstop fast repair set */

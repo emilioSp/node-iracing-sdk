@@ -34,8 +34,8 @@ export type Session = {
   SessionSkipped: number;
   SessionRunGroupsUsed: number;
   SessionEnforceTireCompoundChange: number;
-  ResultsPositions: SessionResultsPosition[];
-  ResultsFastestLap: SessionResultsFastestLap[];
+  ResultsPositions: SessionResultsPosition[] | null;
+  ResultsFastestLap: SessionResultsFastestLap[] | null;
   ResultsAverageLapTime: number;
   ResultsNumCautionFlags: number;
   ResultsNumCautionLaps: number;

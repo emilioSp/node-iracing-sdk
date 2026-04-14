@@ -1,6 +1,6 @@
 {
   "name": "@emiliosp/node-iracing-sdk",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "license": "MIT",
   "author": "Emilio Spatola",
   "description": "Node.js implementation of iRacing SDK",
@@ -35,7 +35,6 @@
     "gaps": "tsx examples/05-rank-gaps.ts",
     "prepublishOnly": "rm -rf dist && npm run build"
   },
-  "license": "MIT",
   "engines": {
     "node": "24"
   },

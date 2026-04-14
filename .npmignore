@@ -18,8 +18,7 @@ coverage/
 
 # Examples and docs (users can see these on GitHub)
 examples/
-telemetry/
-API_REFERENCE.md
+fixtures/
 
 # OS files
 .DS_Store

@@ -1,33 +1,31 @@
 # iRacing SDK for Node.js
 
-Node.js implementation of iRacing SDK. Communicate with iRacing in your Node.js/Electron applications.
+Node.js implementation of the iRacing SDK. Communicate with iRacing in your Node.js/Electron applications.
 
 The SDK can:
 
-- Get session data (WeekendInfo, SessionInfo, etc...)
-- Get live telemetry data (Speed, FuelLevel, etc...)
-- Broadcast messages (camera, replay, chat, pit and telemetry commands)
+- Read live telemetry data (Speed, FuelLevel, RPM, etc.)
+- Read session data (WeekendInfo, DriverInfo, SessionInfo, etc.)
+- Parse `.ibt` telemetry replay files
 
-## Install
-
-### Requirements
+## Prerequisites
 
 - Node.js 24+
 - Windows (iRacing only runs on Windows)
-- npm or yarn
+- npm
 
-### Setup
+## Install
 
 ```bash
-npm install irsdk
+npm install @emiliosp/node-iracing-sdk
 ```
 
 ## Usage
 
-### Basic Example
+### Live Telemetry
 
 ```typescript
-import { IRSDK, VARS } from 'irsdk';
+import { IRSDK, SESSION_DATA_KEYS, VARS } from '@emiliosp/node-iracing-sdk';
 
 // Connect to iRacing (throws if iRacing is not running)
 const ir = await IRSDK.connect();
@@ -37,13 +35,14 @@ ir.refreshSharedMemory();
 
 // ir.get() always returns an array; use [0] for scalar variables
 const speed = ir.get(VARS.SPEED)[0];
-console.log(`Current speed: ${speed}`);
+console.log(`Speed: ${speed} m/s`);
 
-// Check connection status
-if (ir.isConnected()) {
-  const fuelLevel = ir.get(VARS.FUEL_LEVEL)[0];
-  console.log(`Fuel level: ${fuelLevel}`);
-}
+// Read session data
+const weekendInfo = ir.getSessionInfo(SESSION_DATA_KEYS.WEEKEND_INFO);
+console.log(`Track: ${weekendInfo.TrackDisplayName}`);
+
+const driverInfo = ir.getSessionInfo(SESSION_DATA_KEYS.DRIVER_INFO);
+console.log(`Driver: ${driverInfo.Drivers[0].UserName}`);
 
 // Disconnect
 ir.shutdown();
@@ -52,16 +51,19 @@ ir.shutdown();
 ### Reading IBT Files
 
 ```typescript
-import { IBT, VARS } from 'irsdk';
+import { IBT } from '@emiliosp/node-iracing-sdk';
 
 const ibt = new IBT();
 ibt.open('path/to/telemetry.ibt');
 
-// Get data at specific index
-const speed = ibt.get(0, VARS.SPEED);
+// List available variables
+console.log(ibt.varHeadersNamesList);
 
-// Get all data for a variable
-const allSpeeds = ibt.getAll(VARS.SPEED);
+// Get data at a specific record index
+const speed = ibt.get(0, 'Speed');
+
+// Get all records for a variable
+const allSpeeds = ibt.getAll('Speed');
 
 ibt.close();
 ```

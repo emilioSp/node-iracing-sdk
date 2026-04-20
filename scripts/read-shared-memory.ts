@@ -7,7 +7,7 @@ const ir = IRSDK.fromDump(
     import.meta.dirname,
     '..',
     'fixture',
-    'shared-memory_endurance_2.bin',
+    'shared-memory_checkered_flag.bin',
   ),
 );
 
@@ -21,18 +21,27 @@ console.log('fuelPerLap', ir.get(VARS.FUEL_USE_PER_HOUR)[0]);
 console.log('lapCount', ir.get(VARS.LAP)[0]);
 console.log('lapDistance', ir.get(VARS.LAP_DIST)[0]);
 
+const SESSION_FLAG_CHECKERED = 0x00000001;
+const isCheckeredFlag = (flags: number): boolean =>
+  (flags & SESSION_FLAG_CHECKERED) !== 0;
+
 const playerIdx: number = ir.get(VARS.PLAYER_CAR_IDX)[0] ?? -1;
 const positions: number[] = ir.get(VARS.CAR_IDX_POSITION) ?? [];
 const lastLaps: number[] = ir.get(VARS.CAR_IDX_LAST_LAP_TIME) ?? [];
+const lastLaps2: number[] = ir.get(VARS.LAP_LAST_LAP_TIME) ?? [];
 const lapsCompleted: number[] = ir.get(VARS.CAR_IDX_LAP_COMPLETED) ?? [];
 const classPosition: number[] = ir.get(VARS.CAR_IDX_CLASS_POSITION) ?? [];
 const raceLaps: number[] = ir.get(VARS.RACE_LAPS);
 const sessionNum: number = ir.get(VARS.SESSION_NUM)[0];
+const flagsSession = ir?.get(VARS.SESSION_FLAGS)[0];
 
 console.log('playerIdx', playerIdx);
 console.log('sessionNum', sessionNum);
 console.log('positions', positions);
 console.log('lastLaps', lastLaps);
+console.log('lastLaps2', lastLaps2);
+console.log('flagsSession', flagsSession);
+console.log('isCheckeredFlag', isCheckeredFlag(flagsSession));
 console.log('lastLaps count', lastLaps.length);
 console.log('lapsCompleted', lapsCompleted);
 console.log('lapsCompleted 32', lapsCompleted[32]);

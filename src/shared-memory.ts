@@ -35,10 +35,10 @@ export class SharedMemory {
 
   constructor(data: number[]) {
     this.data = data;
-    this.init();
+    this.initHeader();
   }
 
-  private init(): void {
+  private initHeader(): void {
     const view = new DataView(new Uint8Array(this.data.slice(0, 48)).buffer);
     this.version = view.getInt32(0, true);
     this.status = view.getInt32(4, true);
@@ -52,11 +52,17 @@ export class SharedMemory {
     this.bufLen = view.getInt32(36, true);
 
     this.varHeadersMap = new Map();
-
     for (let i = 0; i < this.numVars; i++) {
       const varHeader = this.readVarHeader(this.varHeaderOffset + i * 144);
       this.varHeadersMap.set(varHeader.name, varHeader);
     }
+  }
+
+  private refreshDynamicFields(): void {
+    const view = new DataView(new Uint8Array(this.data.slice(0, 20)).buffer);
+    this.status = view.getInt32(4, true);
+    this.sessionInfoUpdate = view.getInt32(12, true);
+    this.sessionInfoLen = view.getInt32(16, true);
   }
 
   getVarHeaders(): Map<string, Vars> {
@@ -192,6 +198,6 @@ export class SharedMemory {
 
   updateData(fresh: number[]): void {
     this.data = fresh;
-    this.init();
+    this.refreshDynamicFields();
   }
 }

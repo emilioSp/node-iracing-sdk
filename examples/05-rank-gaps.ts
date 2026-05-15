@@ -10,8 +10,8 @@
  * and gaps use CarIdxEstTime (same reference as iRacing's relative widget).
  */
 
-import { IRSDK } from '../src/irsdk.js';
-import { SESSION_DATA_KEYS, VARS } from '../src/vars.js';
+import { IRSDK } from '#src/irsdk.js';
+import { SESSION_DATA_KEYS, VARS } from '#src/vars.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

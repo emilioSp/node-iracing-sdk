@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import { SharedMemory } from './shared-memory.js';
+import type { VarKey } from './vars.js';
 
 const readInt32LE = (data: number[], offset: number): number => {
   return (
@@ -49,7 +50,7 @@ export class IBT {
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
-  get(index: number, key: string): any {
+  get(index: number, key: VarKey): any {
     if (!this.sharedMemory) {
       return null;
     }
@@ -62,7 +63,7 @@ export class IBT {
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: Telemetry data is dynamically typed
-  getAll(key: string): any[] | null {
+  getAll(key: VarKey): any[] | null {
     if (!this.sharedMemory) {
       return null;
     }

@@ -4,12 +4,13 @@
  * This is the simplest example - connect to iRacing and read some telemetry data
  */
 
-import { IRSDK } from '../src/irsdk.js';
-import { SESSION_DATA_KEYS, VARS } from '../src/vars.js';
+import { IRSDK } from '#src/irsdk.js';
+import { SESSION_DATA_KEYS, VARS } from '#src/vars.js';
 
 async function main() {
   console.log('Connecting to iRacing...');
-  const ir = await IRSDK.connect();
+  // const ir = await IRSDK.connect();
+  const ir = await IRSDK.fromDump('../fixture/shared-memory_ai_race.bin');
   console.log('✓ Connected to iRacing');
   console.log(
     `Available telemetry variables: ${ir.getVarHeadersNamesList().length}\n`,

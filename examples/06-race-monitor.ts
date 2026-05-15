@@ -7,8 +7,8 @@
  *  - Full standings: position, driver name, car
  */
 
-import { IRSDK } from '../src/irsdk.js';
-import { SESSION_DATA_KEYS, VARS } from '../src/vars.js';
+import { IRSDK } from '#src/irsdk.js';
+import { SESSION_DATA_KEYS, VARS } from '#src/vars.js';
 
 async function main() {
   console.log('Connecting to iRacing...');

@@ -4,12 +4,13 @@
  * Display live telemetry data in the terminal, updated every 100ms
  */
 
-import { IRSDK } from '../src/irsdk.js';
-import { VARS } from '../src/vars.js';
+import { IRSDK } from '#src/irsdk.js';
+import { VARS } from '#src/vars.js';
 
 async function main() {
   console.log('Connecting to iRacing...');
-  const ir = await IRSDK.connect();
+  // const ir = await IRSDK.connect();
+  const ir = await IRSDK.fromDump('../fixture/shared-memory_ai_race.bin');
   console.log('Connected! Press Ctrl+C to exit\n');
 
   const updateInterval = setInterval(() => {

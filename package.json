@@ -16,6 +16,9 @@
   "exports": {
     ".": "./dist/index.js"
   },
+  "imports": {
+    "#src/*": "./src/*"
+  },
   "files": [
     "dist"
   ],

@@ -115,8 +115,6 @@ export const VARS = {
   DC_ABS: 'dcABS',
   /** In car traction control adjustment */
   DC_TRACTION_CONTROL: 'dcTractionControl',
-  /** In car traction control active */
-  DC_TRACTION_CONTROL_TOGGLE: 'dcTractionControlToggle',
   /** In car brake bias adjustment */
   DC_BRAKE_BIAS: 'dcBrakeBias',
   /** Default units for the user interface 0 = english 1 = metric */
